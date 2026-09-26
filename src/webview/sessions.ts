@@ -147,6 +147,13 @@ function group(state: UiState, title: string, note: string, nodes: Node[]): stri
     ${nodes.map((n) => card(state, n, 0)).join("")}`;
 }
 
+/** Serves Relay to the phone through Tailscale; clicking again turns it off. */
+function remoteToggle(state: UiState): string {
+  const on = state.remoteAccess;
+  const title = on ? "Remote access is on. Click to turn it off." : "Turn on remote access from your phone";
+  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleRemote" title="${title}" aria-label="Remote access" aria-pressed="${on}">${icons.phone}</button>`;
+}
+
 export function renderSessions(state: UiState): string {
   const cutoff = state.now - state.pastWindowMs;
   const working: Node[] = [];
@@ -176,6 +183,8 @@ export function renderSessions(state: UiState): string {
   const head =
     state.layout === "wide"
       ? `<div class="section-head"><span>Sessions</span><span class="grow"></span>
+           <button class="icon-btn" data-action="openBrowser" title="Open your app in Relay's browser to add notes on elements" aria-label="Open in Browser">${icons.globe}</button>
+           ${remoteToggle(state)}
            <button class="btn btn-primary" data-action="newSession">${icons.plus} New</button></div>`
       : "";
 

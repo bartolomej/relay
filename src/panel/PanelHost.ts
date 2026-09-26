@@ -164,6 +164,13 @@ export class PanelHost implements vscode.Disposable {
       case "newSession":
         this.startNew();
         return;
+      case "openBrowser":
+        if (!this.remote) await vscode.commands.executeCommand("relay.openBrowser");
+        return;
+      case "toggleRemote":
+        // The phone can't turn Remote off; it would cut itself off.
+        if (!this.remote) await vscode.commands.executeCommand(remoteStatus.on ? "relay.remoteOff" : "relay.remoteOn");
+        return;
       case "send": {
         let id = m.sessionId;
         if (!id) {

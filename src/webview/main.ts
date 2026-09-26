@@ -145,6 +145,12 @@ app.addEventListener("click", (e) => {
     case "newSession":
       post({ type: "newSession" });
       break;
+    case "openBrowser":
+      post({ type: "openBrowser" });
+      break;
+    case "toggleRemote":
+      post({ type: "toggleRemote" });
+      break;
     case "fork":
       e.stopPropagation();
       post({ type: "fork", sessionId: id });

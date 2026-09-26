@@ -37,6 +37,9 @@ export type FromWebview =
   | { type: "ready" }
   | { type: "selectSession"; sessionId: string }
   | { type: "newSession" }
+  /** The title-bar buttons, repeated in the editor tab, which has no title bar of its own. */
+  | { type: "openBrowser" }
+  | { type: "toggleRemote" }
   | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; mode?: MessageMode }
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }
