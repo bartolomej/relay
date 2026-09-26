@@ -48,10 +48,24 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     return !!this.host && this.host.isViewing(sessionId);
   }
 
-  /** Reveals the view on this session; before the view first opens, the host doesn't exist yet. */
+  selectedSession(): string | undefined {
+    return this.host ? this.host.selectedSession : undefined;
+  }
+
   async open(sessionId: string): Promise<void> {
+    const host = await this.reveal();
+    if (host) host.open(sessionId);
+  }
+
+  async insertText(sessionId: string | undefined, text: string): Promise<void> {
+    const host = await this.reveal();
+    if (host) host.insertText(sessionId, text);
+  }
+
+  /** Before the view first opens, the host doesn't exist yet. */
+  private async reveal(): Promise<PanelHost | undefined> {
     await vscode.commands.executeCommand(`${SidebarViewProvider.viewType}.focus`);
     for (let i = 0; i < 40 && !this.host; i++) await new Promise((r) => setTimeout(r, 50));
-    if (this.host) this.host.open(sessionId);
+    return this.host;
   }
 }

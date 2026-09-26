@@ -13,5 +13,5 @@
     "types": ["node", "vscode"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/webview/**"]
+  "exclude": ["src/webview/**", "src/picker/**"]
 }

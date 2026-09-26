@@ -31,6 +31,19 @@ const webview = {
   logLevel: "info",
 };
 
+// Injected into pages of Relay's browser; `__relayPicker` holds the functions Relay calls back.
+const picker = {
+  entryPoints: ["src/picker/picker.ts"],
+  bundle: true,
+  format: "iife",
+  globalName: "__relayPicker",
+  platform: "browser",
+  target: "es2019",
+  outfile: "dist/picker.js",
+  minify: production,
+  logLevel: "info",
+};
+
 const css = {
   entryPoints: ["src/webview/styles.css"],
   bundle: true,
@@ -40,8 +53,8 @@ const css = {
 };
 
 if (watch) {
-  const contexts = await Promise.all([extension, webview, css].map((c) => esbuild.context(c)));
+  const contexts = await Promise.all([extension, webview, picker, css].map((c) => esbuild.context(c)));
   await Promise.all(contexts.map((c) => c.watch()));
 } else {
-  await Promise.all([extension, webview, css].map((c) => esbuild.build(c)));
+  await Promise.all([extension, webview, picker, css].map((c) => esbuild.build(c)));
 }

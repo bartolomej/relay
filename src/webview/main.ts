@@ -1,7 +1,7 @@
 import type { ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { renderChat } from "./chat";
-import { bindComposerOnce, refreshChips, renderComposer } from "./composer";
+import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
 import { renderSessions } from "./sessions";
 import { renderUsage, usageOpen } from "./usage";
 import { local, post } from "./state";
@@ -101,6 +101,8 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
   } else if (e.data.type === "focusInput") {
     const input = document.getElementById("input");
     if (input) input.focus();
+  } else if (e.data.type === "insertText") {
+    insertText(e.data.text);
   }
 });
 

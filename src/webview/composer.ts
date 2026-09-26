@@ -112,6 +112,18 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   }
 }
 
+/** Appends a block of text after what's already typed, a blank line between them. */
+export function insertText(text: string): void {
+  const input = document.getElementById("input") as HTMLTextAreaElement | null;
+  if (!input) return;
+  const typed = input.value.replace(/\s+$/, "");
+  input.value = typed ? `${typed}\n\n${text}` : text;
+  autosize(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  input.scrollTop = input.scrollHeight;
+}
+
 /** Fits the box to its text, up to the CSS max-height (10 lines); past that it scrolls. */
 function autosize(input: HTMLTextAreaElement): void {
   input.style.height = "auto";

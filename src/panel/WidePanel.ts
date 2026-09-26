@@ -33,6 +33,19 @@ export class WidePanel {
     return true;
   }
 
+  /** The session open in the tab, if there is a tab. */
+  static selectedSession(): string | undefined {
+    return WidePanel.current ? WidePanel.current.host.selectedSession : undefined;
+  }
+
+  /** Adds text to the tab's message box on that session; false when there is no tab. */
+  static insertText(sessionId: string | undefined, text: string): boolean {
+    if (!WidePanel.current) return false;
+    WidePanel.current.panel.reveal();
+    WidePanel.current.host.insertText(sessionId, text);
+    return true;
+  }
+
   static startNew(): boolean {
     if (!WidePanel.current || !WidePanel.current.panel.visible) return false;
     WidePanel.current.host.startNew();

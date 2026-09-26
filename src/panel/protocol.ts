@@ -23,7 +23,11 @@ export interface UiState {
   now: number;
 }
 
-export type ToWebview = { type: "state"; state: UiState } | { type: "focusInput" };
+export type ToWebview =
+  | { type: "state"; state: UiState }
+  | { type: "focusInput" }
+  /** Added to the end of the message box, e.g. a note from the browser. */
+  | { type: "insertText"; text: string };
 
 export type FromWebview =
   | { type: "ready" }

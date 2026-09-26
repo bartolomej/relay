@@ -45,6 +45,12 @@
         "title": "Open as Editor Tab",
         "category": "Relay",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "relay.openBrowser",
+        "title": "Open in Browser",
+        "category": "Relay",
+        "icon": "$(globe)"
       }
     ],
     "menus": {
@@ -58,6 +64,11 @@
           "command": "relay.openAsTab",
           "when": "view == relay.sidebar",
           "group": "navigation@2"
+        },
+        {
+          "command": "relay.openBrowser",
+          "when": "view == relay.sidebar",
+          "group": "navigation@3"
         }
       ]
     },
@@ -86,6 +97,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the codex executable. Empty: look on PATH and the usual install locations."
+        },
+        "relay.chromePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Chrome (or other Chromium browser) executable used by Open in Browser. Empty: look in the usual install locations."
         },
         "relay.titleModel": {
           "type": "string",
@@ -130,7 +146,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/webview/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/webview/tsconfig.json && tsc --noEmit -p src/picker/tsconfig.json",
     "vscode:prepublish": "npm run build -- --production"
   },
   "devDependencies": {

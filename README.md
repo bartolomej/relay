@@ -82,6 +82,10 @@ Nothing fires for the session you have open, or between queued turns.
 - **Keep awake.** While an agent is working, Relay keeps your Mac from idle-sleeping (the display can still sleep). Toggle it with the cup icon in the chat header.
 - **Worktrees.** Before starting a new session, click the branch icon in the chat header to have the agent work in its own git worktree (in `~/.relay/worktrees`, on a `relay/…` branch, with `node_modules` linked from the project). Your project folder stays untouched while it works. **Complete** commits what's left, merges the branch into the one you started from with a merge commit, and removes the worktree. If your branch has moved on and conflicts, the agent is asked to resolve them first. Off by default.
 
+### Notes from the browser
+
+Click the globe in Relay's title bar (or run **Relay: Open in Browser**) and enter your app's address, e.g. `localhost:3000`. Relay opens its own Chrome window, with a profile of its own for each project. On any page, click the ✎ button in the bottom-right corner (or press ⌥⇧C), click an element, and write what should change. The popup's dropdown picks the chat, defaulting to the one open in Relay. The note is added to that chat's message box with the page address, a CSS selector for the element, and the element's text, so you can review it or collect several before sending. While you pick, the app doesn't see your clicks. Pages can't see or send notes themselves, because the picker runs apart from their scripts.
+
 ### Sessions live in your project
 
 Each session is saved as a JSON file in `.relay/sessions/` inside the project, so every project shows only its own sessions and they survive reloads. If you rename or move the project folder, its sessions follow it. The files contain full transcripts, so consider adding `.relay/` to your `.gitignore` unless you want to share them.
@@ -90,6 +94,7 @@ Each session is saved as a JSON file in `.relay/sessions/` inside the project, s
 
 - VS Code 1.137 or newer.
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) and/or [Codex](https://github.com/openai/codex) installed and signed in. Relay finds them on your PATH, in `~/.local/bin`, or in Homebrew's folder. Otherwise, set their paths in the settings below.
+- Open in Browser needs Google Chrome, or set `relay.chromePath` to another Chromium browser (Edge, Brave and Chromium are found automatically on macOS).
 - Plan usage needs a subscription sign-in (claude.ai for Claude, ChatGPT for Codex). With an API key, sessions still work but no limits are shown.
 
 ## Install
@@ -112,6 +117,7 @@ This builds `relay.vsix` and installs it into VS Code. Reload any open windows, 
 | `relay.titleModel` | `gpt-5.6-luna` | Codex model that writes session titles. Without Codex, the title is the message's first line. |
 | `relay.claudePath` | | Path to `claude`, if Relay can't find it. |
 | `relay.codexPath` | | Path to `codex`, if Relay can't find it. |
+| `relay.chromePath` | | Path to the browser Open in Browser starts, if Relay can't find Chrome. |
 | `relay.backend` | `real` | `mock` runs fake providers with sample sessions, for working on the UI. |
 
 ## Known limitations

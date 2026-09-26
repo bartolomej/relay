@@ -59,6 +59,16 @@ export class PanelHost implements vscode.Disposable {
     void this.push();
   }
 
+  /** Opens the session, or a new one without an id, and adds the text to the message box for the user to send. */
+  insertText(sessionId: string | undefined, text: string): void {
+    this.select(sessionId);
+    void this.push().then(() => this.post({ type: "insertText", text }));
+  }
+
+  get selectedSession(): string | undefined {
+    return this.selectedSessionId;
+  }
+
   /** Whether the user can see this session right now in this panel. */
   isViewing(sessionId: string): boolean {
     return this.selectedSessionId === sessionId && this.isVisible();

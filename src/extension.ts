@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { createMockSessionsApi } from "./api/MockSessionsApi";
@@ -7,6 +8,7 @@ import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
 import { RealSessionsApi } from "./backend/RealSessionsApi";
+import { Browser, findChrome, type PageNote } from "./browser/browser";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
 import { keepAwakeEnabled, workspaceCwd } from "./panel/PanelHost";
@@ -70,6 +72,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   watchKeepAwake(context, api);
 
   const sidebar = new SidebarViewProvider(context.extensionUri, api);
+  registerBrowser(context, api, sidebar);
 
   const attention = new Attention(api, {
     // Selected in a visible panel of the focused window: the user is already looking.
@@ -98,6 +101,68 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
   );
+}
+
+/**
+ * Relay's own Chrome window. Picking an element there and writing a note adds
+ * it to a chat's message box, in the Relay tab if one is open, else the sidebar.
+ */
+function registerBrowser(context: vscode.ExtensionContext, api: SessionsApi, sidebar: SidebarViewProvider): void {
+  const storage = context.storageUri || context.globalStorageUri;
+  const selectedSession = () => (WidePanel.selectedSession() !== undefined ? WidePanel.selectedSession() : sidebar.selectedSession());
+  const browser = new Browser(path.join(storage.fsPath, "chrome"), {
+    pickerSource: () => fs.readFileSync(vscode.Uri.joinPath(context.extensionUri, "dist", "picker.js").fsPath, "utf8"),
+    targets: async () => {
+      const sessions = (await api.listSessions()).filter((s) => !s.archived).sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+      return { targets: sessions.map((s) => ({ id: s.id, title: s.title })), selected: selectedSession() };
+    },
+    addNote: async (note) => {
+      const session = (await api.listSessions()).find((s) => s.id === note.sessionId);
+      const id = session ? session.id : undefined;
+      if (!WidePanel.insertText(id, formatNote(note))) await sidebar.insertText(id, formatNote(note));
+      return session ? `“${session.title}”` : "a new chat";
+    },
+  });
+  context.subscriptions.push(
+    { dispose: () => browser.dispose() },
+    vscode.commands.registerCommand("relay.openBrowser", async () => {
+      const executable = findChrome(setting("chromePath"));
+      if (!executable) {
+        void vscode.window.showErrorMessage("Open in Browser needs Google Chrome. Install it, or set relay.chromePath to a Chromium browser.");
+        return;
+      }
+      const url = await askUrl(context);
+      if (!url) return;
+      try {
+        await browser.open(url, executable);
+      } catch (e) {
+        void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
+      }
+    }),
+  );
+}
+
+/** The app's address, remembered per project. A bare host like localhost:3000 gets http://. */
+async function askUrl(context: vscode.ExtensionContext): Promise<string | undefined> {
+  const normalize = (v: string) => (/^[a-z][a-z0-9+.-]*:/i.test(v.trim()) ? v.trim() : `http://${v.trim()}`);
+  const text = await vscode.window.showInputBox({
+    title: "Open in Browser",
+    prompt: "Address of the app. In the browser, the ✎ button (or ⌥⇧C) picks an element and adds your note to a chat.",
+    value: context.workspaceState.get<string>("relay.browserUrl", "http://localhost:3000"),
+    validateInput: (v) => (/^https?:\/\/\S+$/i.test(normalize(v)) ? undefined : "Enter an address like localhost:3000 or https://example.com."),
+  });
+  if (!text) return undefined;
+  const url = normalize(text);
+  await context.workspaceState.update("relay.browserUrl", url);
+  return url;
+}
+
+/** What lands in the message box; the element's text helps the agent find it in the source. */
+function formatNote(note: PageNote): string {
+  const lines = [`Page: ${note.url}`, `Element: ${note.selector}`];
+  if (note.text) lines.push(`Element text: "${note.text}"`);
+  lines.push(`Note: ${note.comment}`);
+  return lines.join("\n");
 }
 
 /** Holds the computer awake while any session is running, unless turned off. */
