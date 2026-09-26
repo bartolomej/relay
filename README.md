@@ -46,9 +46,9 @@ Bars turn amber at 75% and red at 90%. In the sidebar the panel collapses to one
 | Key | What it does |
 |---|---|
 | **↵** | Send. While the agent is working, the message is **queued** and goes out when the current turn ends. |
-| **⇧↵** | Interrupt the running turn and send right away. |
+| **⌘↵** (Ctrl+↵) | Interrupt the running turn and send right away. |
 | **Esc** | Stop the agent. |
-| **⌥↵** | New line. |
+| **⇧↵** or **⌥↵** | New line. |
 
 Queued messages wait above the composer, each with **send now** and **remove**. While the agent works, the send button turns into a stop button. The message box grows up to 10 lines before it scrolls.
 

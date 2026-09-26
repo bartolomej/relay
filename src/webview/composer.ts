@@ -90,9 +90,9 @@ function pickModel(opts: { model: string; effort: Effort }, m: ModelInfo): void 
 
 function placeholder(state: UiState): string {
   const s = selected(state);
-  if (!s) return "Start a new session…  ↵ send · ⌥↵ new line";
-  if (isActive(s)) return "Queue a message…  ↵ queue · ⇧↵ interrupt and send · esc stop";
-  return "Message this session…  ↵ send · ⌥↵ new line";
+  if (!s) return "Start a new session…  ↵ send · ⇧↵ new line";
+  if (isActive(s)) return "Queue a message…  ↵ queue · ⌘↵ interrupt and send · esc stop";
+  return "Message this session…  ↵ send · ⇧↵ new line";
 }
 
 export function submit(state: UiState, delivery: Delivery = "queue"): void {
@@ -140,7 +140,7 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (!input) return;
   input.addEventListener("input", () => autosize(input));
-  // ↵ sends (queued while the session works), ⇧↵ interrupts and sends, ⌥↵ is a new line, esc stops.
+  // ↵ sends (queued while the session works), ⌘↵ (Ctrl↵) interrupts and sends, ⇧↵ or ⌥↵ is a new line, esc stops.
   input.addEventListener("keydown", (e) => {
     if (e.isComposing) return;
     if (e.key === "Escape") {
@@ -154,12 +154,12 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
     }
     if (e.key !== "Enter") return;
     e.preventDefault();
-    if (e.altKey) {
+    if (e.shiftKey || e.altKey) {
       input.setRangeText("\n", input.selectionStart, input.selectionEnd, "end");
       autosize(input);
       return;
     }
     const s = getState();
-    if (s) submit(s, e.shiftKey ? "interrupt" : "queue");
+    if (s) submit(s, e.metaKey || e.ctrlKey ? "interrupt" : "queue");
   });
 }
