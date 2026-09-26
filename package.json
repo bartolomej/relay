@@ -51,6 +51,23 @@
         "title": "Open in Browser",
         "category": "Relay",
         "icon": "$(globe)"
+      },
+      {
+        "command": "relay.remoteOn",
+        "title": "Turn On Remote Access",
+        "category": "Relay",
+        "icon": "$(device-mobile)"
+      },
+      {
+        "command": "relay.remoteOff",
+        "title": "Turn Off Remote Access",
+        "category": "Relay",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "relay.remoteResetKey",
+        "title": "Reset Remote Access Key",
+        "category": "Relay"
       }
     ],
     "menus": {
@@ -69,6 +86,26 @@
           "command": "relay.openBrowser",
           "when": "view == relay.sidebar",
           "group": "navigation@3"
+        },
+        {
+          "command": "relay.remoteOn",
+          "when": "view == relay.sidebar && !relay.remoteOn",
+          "group": "navigation@4"
+        },
+        {
+          "command": "relay.remoteOff",
+          "when": "view == relay.sidebar && relay.remoteOn",
+          "group": "navigation@4"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "relay.remoteOn",
+          "when": "!relay.remoteOn"
+        },
+        {
+          "command": "relay.remoteOff",
+          "when": "relay.remoteOn"
         }
       ]
     },
@@ -102,6 +139,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the Chrome (or other Chromium browser) executable used by Open in Browser. Empty: look in the usual install locations."
+        },
+        "relay.tailscalePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the tailscale executable used by Remote Access. Empty: look on PATH and in the Tailscale app."
         },
         "relay.titleModel": {
           "type": "string",
@@ -155,6 +197,7 @@
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "markdown-it": "^15.0.2",
+    "qrcode-generator": "^2.0.4",
     "typescript": "^7.0.2"
   },
   "dependencies": {

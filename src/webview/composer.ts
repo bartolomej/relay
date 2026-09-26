@@ -90,6 +90,8 @@ function pickModel(opts: { model: string; effort: Effort }, m: ModelInfo): void 
 
 function placeholder(state: UiState): string {
   const s = selected(state);
+  // A phone keyboard's return key adds a new line; the button sends.
+  if (state.remote) return !s ? "Start a new session…" : isActive(s) ? "Queue a message…" : "Message this session…";
   if (!s) return "Start a new session…  ↵ send · ⇧↵ new line";
   if (isActive(s)) return "Queue a message…  ↵ queue · ⌘↵ interrupt and send · esc stop";
   return "Message this session…  ↵ send · ⇧↵ new line";
@@ -152,14 +154,15 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
       }
       return;
     }
-    if (e.key !== "Enter") return;
+    const s = getState();
+    // On the phone, return is a new line and the button sends.
+    if (e.key !== "Enter" || (s && s.remote)) return;
     e.preventDefault();
     if (e.shiftKey || e.altKey) {
       input.setRangeText("\n", input.selectionStart, input.selectionEnd, "end");
       autosize(input);
       return;
     }
-    const s = getState();
     if (s) submit(s, e.metaKey || e.ctrlKey ? "interrupt" : "queue");
   });
 }

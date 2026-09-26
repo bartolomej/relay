@@ -1,4 +1,4 @@
-import type { ApprovalDecision } from "../api/types";
+import { minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { renderChat } from "./chat";
 import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
@@ -118,6 +118,14 @@ setInterval(() => {
   });
 }, 1000);
 
+/** The phone has no VS Code input box, so it asks in the page. */
+function askRunLimit(s: UiState, sessionId: string): void {
+  const session = s.sessions.find((x) => x.id === sessionId);
+  if (!session) return;
+  const text = window.prompt("Stop the agent once a run has worked this long, e.g. 30m, 1h or 1h30m. Leave empty for no limit.", session.runLimitMs ? minutesLabel(session.runLimitMs) : "");
+  if (text !== null) post({ type: "setRunLimit", sessionId, limit: text });
+}
+
 function messageText(mid: string): string {
   if (!state) return "";
   const m = state.messages.find((x) => x.id === mid);
@@ -171,7 +179,8 @@ app.addEventListener("click", (e) => {
       render();
       break;
     case "setRunLimit":
-      post({ type: "setRunLimit", sessionId: id });
+      if (state.remote) askRunLimit(state, id);
+      else post({ type: "setRunLimit", sessionId: id });
       break;
     case "removeQueued":
       post({ type: "removeQueued", sessionId: id, queuedId: target.dataset.qid || "" });

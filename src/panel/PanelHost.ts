@@ -3,14 +3,25 @@ import type { SessionsApi } from "../api/SessionsApi";
 import { isActive, minutesLabel, workDir } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
 import { isGitRepo } from "../backend/worktree";
+import { remoteStatus } from "../remote/status";
 import { findLinkable, resolveIn } from "./fileLinks";
 import type { FromWebview, Layout, ToWebview, UiState } from "./protocol";
 
 const PAST_WINDOW_MS = 2 * 60 * 60 * 1000;
 
+/** Where a PanelHost's UI lives: a VS Code webview, or the phone over the network. */
+export interface UiChannel {
+  post(msg: ToWebview): Thenable<unknown>;
+  onMessage(listener: (m: FromWebview) => void): vscode.Disposable;
+}
+
+export function webviewChannel(webview: vscode.Webview): UiChannel {
+  return { post: (msg) => webview.postMessage(msg), onMessage: (listener) => webview.onDidReceiveMessage(listener) };
+}
+
 /**
- * Glue between one webview and the SessionsApi. The sidebar view and the
- * editor-tab panel each own one of these; the API is shared.
+ * Glue between one UI and the SessionsApi. The sidebar view, the editor-tab
+ * panel and each connected phone own one of these; the API is shared.
  */
 export class PanelHost implements vscode.Disposable {
   private selectedSessionId: string | undefined;
@@ -21,13 +32,18 @@ export class PanelHost implements vscode.Disposable {
   private pushQueued = false;
   private gitRepo = false;
 
+  /**
+   * @param remote the UI is on the phone: looking at a session there never marks it
+   *   reviewed, files can't be opened, and state is pushed less often to spare the network
+   */
   constructor(
-    private readonly webview: vscode.Webview,
+    private readonly channel: UiChannel,
     private readonly api: SessionsApi,
     private readonly layout: Layout,
     private readonly isVisible: () => boolean,
+    private readonly remote = false,
   ) {
-    this.disposables.push(webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m)));
+    this.disposables.push(channel.onMessage((m) => void this.handle(m)));
     void isGitRepo(workspaceCwd()).then((yes) => {
       this.gitRepo = yes;
       this.schedulePush();
@@ -38,6 +54,7 @@ export class PanelHost implements vscode.Disposable {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("relay.keepAwake")) this.schedulePush();
       }),
+      remoteStatus.onDidChange(() => this.schedulePush()),
     );
   }
 
@@ -84,8 +101,8 @@ export class PanelHost implements vscode.Disposable {
     this.selectedSessionId = id;
   }
 
-  private post(msg: ToWebview): Thenable<boolean> {
-    return this.webview.postMessage(msg);
+  private post(msg: ToWebview): Thenable<unknown> {
+    return this.channel.post(msg);
   }
 
   private schedulePush(): void {
@@ -94,7 +111,7 @@ export class PanelHost implements vscode.Disposable {
     setTimeout(() => {
       this.pushQueued = false;
       void this.push();
-    }, 40);
+    }, this.remote ? 300 : 40);
   }
 
   private async push(): Promise<void> {
@@ -105,11 +122,12 @@ export class PanelHost implements vscode.Disposable {
     const selected = sessions.find((s) => s.id === this.selectedSessionId);
     // Looking at a finished session counts as checking its output, but it stays
     // under "Ready to review" until the user moves on, so it doesn't jump away mid-read.
-    if (selected && selected.unread && !isActive(selected) && this.isVisible()) {
+    // On the phone it's only a peek; the user reviews on the laptop or with Complete.
+    if (selected && selected.unread && !isActive(selected) && this.isVisible() && !this.remote) {
       this.viewedUnread = selected.id;
     }
     const messages = this.selectedSessionId ? await this.api.getMessages(this.selectedSessionId) : [];
-    const linkable = selected ? findLinkable(messages.map((m) => m.text), workDir(selected)) : [];
+    const linkable = selected && !this.remote ? findLinkable(messages.map((m) => m.text), workDir(selected)) : [];
     const state: UiState = {
       layout: this.layout,
       providers,
@@ -122,6 +140,8 @@ export class PanelHost implements vscode.Disposable {
       showAllPast: this.showAllPast,
       keepAwake: keepAwakeSupported ? keepAwakeEnabled() : undefined,
       worktrees: this.gitRepo,
+      remote: this.remote,
+      remoteAccess: remoteStatus.on,
       now: Date.now(),
     };
     await this.post({ type: "state", state });
@@ -188,10 +208,11 @@ export class PanelHost implements vscode.Disposable {
         await vscode.workspace.getConfiguration("relay").update("keepAwake", !keepAwakeEnabled(), vscode.ConfigurationTarget.Global);
         return;
       case "setRunLimit":
-        await this.askRunLimit(m.sessionId);
+        if (m.limit === undefined) await this.askRunLimit(m.sessionId);
+        else await this.setRunLimit(m.sessionId, m.limit);
         return;
       case "openFile":
-        await this.openFile(m.sessionId, m.path, m.line);
+        if (!this.remote) await this.openFile(m.sessionId, m.path, m.line);
         return;
     }
   }
@@ -231,7 +252,14 @@ export class PanelHost implements vscode.Disposable {
       validateInput: (v) => (v.trim() && !parseDuration(v) ? "Use minutes or hours, e.g. 30m, 1h or 1h30m." : undefined),
     });
     if (text === undefined) return;
-    await this.api.setRunLimit(sessionId, text.trim() ? parseDuration(text) : undefined);
+    await this.setRunLimit(sessionId, text);
+  }
+
+  /** Typed on the phone, where there's no input box; an unreadable limit changes nothing. */
+  private async setRunLimit(sessionId: string, text: string): Promise<void> {
+    const ms = parseDuration(text);
+    if (text.trim() && !ms) return;
+    await this.api.setRunLimit(sessionId, ms);
   }
 }
 

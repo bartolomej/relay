@@ -366,3 +366,11 @@ body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
 .send:disabled { opacity: 0.5; cursor: default; }
 .send.stop { background: var(--bg-hover); color: var(--fg-strong); border: 1px solid var(--border-input); }
 .send.stop svg { width: 12px; height: 12px; }
+
+/* ---------- phone (remote access) ---------- */
+
+.remote .app { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.remote-notice {
+  position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; z-index: 10; padding: 6px 14px; text-align: center; font-size: 11.5px;
+  background: color-mix(in srgb, var(--wait) 16%, var(--bg)); border-bottom: 1px solid var(--wait-border); color: var(--wait);
+}

@@ -20,6 +20,10 @@ export interface UiState {
   keepAwake?: boolean;
   /** New sessions can work in a git worktree; false when the project isn't a git repo. */
   worktrees: boolean;
+  /** This UI is on the phone: files can't be opened and there's no keyboard shortcut for everything. */
+  remote: boolean;
+  /** Remote access is on, which keeps the computer awake while agents work. */
+  remoteAccess: boolean;
   now: number;
 }
 
@@ -42,5 +46,6 @@ export type FromWebview =
   | { type: "complete"; sessionId: string }
   | { type: "toggleAllPast" }
   | { type: "toggleKeepAwake" }
-  | { type: "setRunLimit"; sessionId: string }
+  /** Without a limit the extension asks for one; the phone sends what the user typed. */
+  | { type: "setRunLimit"; sessionId: string; limit?: string }
   | { type: "openFile"; sessionId: string; path: string; line?: number };

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
 import { buildHtml } from "./html";
-import { PanelHost } from "./PanelHost";
+import { PanelHost, webviewChannel } from "./PanelHost";
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   static readonly viewType = "relay.sidebar";
@@ -19,7 +19,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")] };
     view.webview.html = buildHtml(view.webview, this.extensionUri, "sidebar");
     view.badge = this.badge;
-    const host = new PanelHost(view.webview, this.api, "sidebar", () => view.visible);
+    const host = new PanelHost(webviewChannel(view.webview), this.api, "sidebar", () => view.visible);
     this.host = host;
     // A session that finished while hidden is marked seen once the view shows again.
     const visibility = view.onDidChangeVisibility(() => {

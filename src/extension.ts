@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { createMockSessionsApi } from "./api/MockSessionsApi";
 import type { SessionsApi } from "./api/SessionsApi";
-import type { Session } from "./api/types";
+import { isActive, type Session } from "./api/types";
 import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
@@ -15,8 +15,12 @@ import { keepAwakeEnabled, workspaceCwd } from "./panel/PanelHost";
 import { SidebarViewProvider } from "./panel/SidebarViewProvider";
 import { Attention, type NotifyLevel } from "./panel/attention";
 import { WidePanel } from "./panel/WidePanel";
+import { RemoteAccess } from "./remote/RemoteAccess";
+import { remoteStatus } from "./remote/status";
 
 const OLD_EXTENSION_ID = "gregorg.ai-sessions";
+
+let remote: RemoteAccess | undefined;
 
 function setting(key: string): string | undefined {
   const value = vscode.workspace.getConfiguration("relay").get<string>(key);
@@ -73,6 +77,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const sidebar = new SidebarViewProvider(context.extensionUri, api);
   registerBrowser(context, api, sidebar);
+  registerRemote(context, api);
 
   const attention = new Attention(api, {
     // Selected in a visible panel of the focused window: the user is already looking.
@@ -165,7 +170,35 @@ function formatNote(note: PageNote): string {
   return lines.join("\n");
 }
 
-/** Holds the computer awake while any session is running, unless turned off. */
+/** The Remote button, off until clicked in each window. */
+function registerRemote(context: vscode.ExtensionContext, api: SessionsApi): void {
+  const access = new RemoteAccess(context, api, () => setting("tailscalePath"));
+  remote = access;
+  const run = (what: string, fn: () => Promise<void>) => async () => {
+    try {
+      await fn();
+    } catch (e) {
+      void vscode.window.showErrorMessage(`Couldn't ${what}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  context.subscriptions.push(
+    access,
+    vscode.commands.registerCommand(
+      "relay.remoteOn",
+      run("turn on remote access", () =>
+        Promise.resolve(vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Turning on remote access…" }, () => access.turnOn())),
+      ),
+    ),
+    vscode.commands.registerCommand("relay.remoteOff", run("turn off remote access", () => access.turnOff())),
+    vscode.commands.registerCommand("relay.remoteResetKey", run("reset the remote access key", () => access.resetKey())),
+  );
+}
+
+/**
+ * Holds the computer awake while any session is running, unless turned off.
+ * With Remote on it always does, and also while a session waits for an
+ * approval, since the phone can only answer while the computer is awake.
+ */
 function watchKeepAwake(context: vscode.ExtensionContext, api: SessionsApi): void {
   const keepAwake = new KeepAwake();
   let queued = false;
@@ -175,18 +208,23 @@ function watchKeepAwake(context: vscode.ExtensionContext, api: SessionsApi): voi
     queued = true;
     setTimeout(async () => {
       queued = false;
-      const running = (await api.listSessions()).some((s) => s.status === "running");
-      keepAwake.set(running && keepAwakeEnabled());
+      const sessions = await api.listSessions();
+      if (remoteStatus.on) keepAwake.set(sessions.some(isActive));
+      else keepAwake.set(sessions.some((s) => s.status === "running") && keepAwakeEnabled());
     }, 500);
   };
   const unsubscribe = api.onDidChange(update);
   context.subscriptions.push(
     keepAwake,
     { dispose: unsubscribe },
+    remoteStatus.onDidChange(update),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("relay.keepAwake")) update();
     }),
   );
 }
 
-export function deactivate(): void {}
+/** Undoes `tailscale serve`, so the address doesn't point at a closed window. */
+export async function deactivate(): Promise<void> {
+  if (remote) await remote.turnOff();
+}

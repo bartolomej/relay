@@ -1,12 +1,21 @@
 import type { Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
 import type { FromWebview, UiState } from "../panel/protocol";
 
+import { connectRemote } from "./remote";
+
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void };
 
-const vscode = acquireVsCodeApi();
+/** Inside VS Code the webview API; on the phone, the network. */
+const send: (m: FromWebview) => void =
+  typeof acquireVsCodeApi === "function"
+    ? (() => {
+        const vscode = acquireVsCodeApi();
+        return (m: FromWebview) => vscode.postMessage(m);
+      })()
+    : connectRemote();
 
 export function post(m: FromWebview): void {
-  vscode.postMessage(m);
+  send(m);
 }
 
 /** Local UI state that survives state pushes from the extension host. */

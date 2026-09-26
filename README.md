@@ -86,6 +86,18 @@ Nothing fires for the session you have open, or between queued turns.
 
 Click the globe in Relay's title bar (or run **Relay: Open in Browser**) and enter your app's address, e.g. `localhost:3000`. Relay opens its own Chrome window, with a profile of its own for each project. On any page, click the ✎ button in the bottom-right corner (or press ⌥⇧C), click an element, and write what should change. The popup's dropdown picks the chat, defaulting to the one open in Relay. The note is added to that chat's message box with the page address, a CSS selector for the element, and the element's text, so you can review it or collect several before sending. While you pick, the app doesn't see your clicks. Pages can't see or send notes themselves, because the picker runs apart from their scripts.
 
+### Remote access from your phone
+
+Click the phone icon in Relay's title bar (or run **Relay: Turn On Remote Access**) to check on sessions, read their output, send prompts, answer approvals and stop agents from your phone, from anywhere. A QR code opens; scan it with the phone's camera. Click the icon again to turn it off. It's off by default and after every reload.
+
+It goes through [Tailscale](https://tailscale.com), a private network between your own devices: install it on the Mac and the phone and sign in with the same account. Relay's server listens only on the Mac itself, and Relay runs `tailscale serve` to reach it at `https://<your-mac>.<tailnet>.ts.net:8443` from your devices only. Nothing is exposed to the internet. The first time, Tailscale may ask you to enable HTTPS for your tailnet; the QR page shows its link.
+
+- **Access key.** Every request also needs the project's access key, which is in the QR code (after `#`, so it never reaches a server log). It's made once per project, kept in the macOS Keychain, and reused. **Relay: Reset Remote Access Key** makes a new one and signs out every phone.
+- **Only reading on the phone doesn't count as reviewed.** Sessions stay under Ready to review until you open them on the laptop or click **Complete**.
+- **Keeps the Mac awake.** While Remote is on, the Mac stays awake until all agents are done, including ones waiting for an approval, whatever the keep-awake setting says. Closing the lid still puts it to sleep, and once it sleeps the phone can't reach it.
+- **One project at a time.** Turning Remote on in another window moves it there.
+- On the phone, return adds a new line and the send button sends. File names aren't links.
+
 ### Sessions live in your project
 
 Each session is saved as a JSON file in `.relay/sessions/` inside the project, so every project shows only its own sessions and they survive reloads. If you rename or move the project folder, its sessions follow it. The files contain full transcripts, so consider adding `.relay/` to your `.gitignore` unless you want to share them.
@@ -94,6 +106,7 @@ Each session is saved as a JSON file in `.relay/sessions/` inside the project, s
 
 - VS Code 1.137 or newer.
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) and/or [Codex](https://github.com/openai/codex) installed and signed in. Relay finds them on your PATH, in `~/.local/bin`, or in Homebrew's folder. Otherwise, set their paths in the settings below.
+- Remote access needs [Tailscale](https://tailscale.com) on the Mac and the phone.
 - Open in Browser needs Google Chrome, or set `relay.chromePath` to another Chromium browser (Edge, Brave and Chromium are found automatically on macOS).
 - Plan usage needs a subscription sign-in (claude.ai for Claude, ChatGPT for Codex). With an API key, sessions still work but no limits are shown.
 
@@ -118,6 +131,7 @@ This builds `relay.vsix` and installs it into VS Code. Reload any open windows, 
 | `relay.claudePath` | | Path to `claude`, if Relay can't find it. |
 | `relay.codexPath` | | Path to `codex`, if Relay can't find it. |
 | `relay.chromePath` | | Path to the browser Open in Browser starts, if Relay can't find Chrome. |
+| `relay.tailscalePath` | | Path to `tailscale`, if Relay can't find it on your PATH or in the Tailscale app. |
 | `relay.backend` | `real` | `mock` runs fake providers with sample sessions, for working on the UI. |
 
 ## Known limitations

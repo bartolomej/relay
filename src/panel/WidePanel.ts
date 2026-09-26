@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
 import { buildHtml } from "./html";
-import { PanelHost } from "./PanelHost";
+import { PanelHost, webviewChannel } from "./PanelHost";
 
 /** Sessions on the left, the open session on the right, as an editor tab. One at a time. */
 export class WidePanel {
@@ -60,7 +60,7 @@ export class WidePanel {
     api: SessionsApi,
   ) {
     panel.webview.html = buildHtml(panel.webview, extensionUri, "wide");
-    this.host = new PanelHost(panel.webview, api, "wide", () => panel.visible);
+    this.host = new PanelHost(webviewChannel(panel.webview), api, "wide", () => panel.visible);
     // A session that finished while the tab was in the background is marked seen once it shows again.
     panel.onDidChangeViewState(() => {
       if (panel.visible) this.host.refresh();

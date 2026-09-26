@@ -19,27 +19,28 @@ function toolIcon(kind: ToolEvent["kind"]): string {
   }
 }
 
-function tool(t: ToolEvent): string {
+/** On the phone there's no editor to open a file in, so paths are plain text. */
+function tool(t: ToolEvent, openable: boolean): string {
   const diff =
     t.added !== undefined || t.removed !== undefined
       ? `<span class="right"><span class="add">+${t.added || 0}</span> <span class="del">−${t.removed || 0}</span></span>`
       : t.detail
         ? `<span class="right ${t.ok ? "add" : ""}">${esc(t.detail)}</span>`
         : "";
-  const target = t.path
+  const target = t.path && openable
     ? `<a class="target mono ellipsis file-link" data-action="openFile" data-path="${esc(t.path)}" title="Open ${esc(t.target)}">${esc(t.target)}</a>`
     : `<span class="target mono ellipsis">${esc(t.target)}</span>`;
   return `<div class="tool">${toolIcon(t.kind)}<span>${esc(t.label)}</span>${target}${diff}</div>`;
 }
 
 /** The latest user message is pinned so the reply below it keeps its question in view while scrolling. */
-function message(m: Message, session: Session, pinned: boolean, links: Set<string>): string {
+function message(m: Message, session: Session, pinned: boolean, links: Set<string>, openable: boolean): string {
   if (m.role === "user") {
     const cls = pinned ? `msg-pinned ${local.expandedPin === m.id ? "expanded" : ""}` : "";
     const toggle = pinned ? ` data-action="togglePin" data-mid="${esc(m.id)}"` : "";
     return `<div class="msg msg-user ${cls}" data-mid="${esc(m.id)}"><div class="bubble"${toggle}>${modeTag(m.mode)}${esc(m.text)}</div></div>`;
   }
-  const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map(tool).join("")}</div>` : "";
+  const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t) => tool(t, openable)).join("")}</div>` : "";
   const caret = m.streaming ? `<span class="caret"></span>` : "";
   const text = m.text ? `<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : m.streaming ? `<div class="msg-text">${caret}</div>` : "";
   const toolbar = m.streaming
@@ -82,6 +83,10 @@ function contextMeter(used: number, limit: number, wide: boolean): string {
 /** On: the computer stays awake while any agent works. Off: it may sleep. */
 function keepAwakeToggle(state: UiState): string {
   if (state.keepAwake === undefined) return "";
+  if (state.remoteAccess) {
+    const title = "Remote access is on, so the computer stays awake until all agents are done.";
+    return `<button class="icon-btn on" disabled title="${title}" aria-label="${title}" aria-pressed="true">${icons.coffee}</button>`;
+  }
   const on = state.keepAwake;
   const title = on ? "Keeping the computer awake while agents work. Click to let it sleep." : "The computer may sleep while agents work. Click to keep it awake.";
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleKeepAwake" title="${title}" aria-label="Keep awake while working" aria-pressed="${on}">${on ? icons.coffee : icons.moon}</button>`;
@@ -184,6 +189,6 @@ export function renderChat(state: UiState): string {
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
-      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links)).join("")}${approval(s)}</div>`;
+      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${approval(s)}</div>`;
   return `<div class="chat">${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }
