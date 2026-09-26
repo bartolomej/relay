@@ -44,9 +44,9 @@ export function refreshChips(state: UiState): void {
       ${efforts.map((e) => `<option value="${esc(e)}" ${e === opts.effort ? "selected" : ""}>${esc(e)}</option>`).join("")}
     </select>`
     : "";
-  const modeSel = `<select class="chip ${local.mode === "plan" ? "chip-on" : ""}" id="chip-mode" aria-label="Mode" title="Plan: the agent asks questions before writing code">
-      <option value="normal" ${local.mode === "normal" ? "selected" : ""}>Normal</option>
-      <option value="plan" ${local.mode === "plan" ? "selected" : ""}>Plan</option>
+  const modes: [MessageMode, string][] = [["normal", "Normal"], ["plan", "Plan"], ["ask", "Ask"]];
+  const modeSel = `<select class="chip ${local.mode !== "normal" ? "chip-on" : ""}" id="chip-mode" aria-label="Mode" title="Plan: the agent asks questions before writing code, for one message. Ask: it only answers and can't change anything, until you switch back.">
+      ${modes.map(([m, label]) => `<option value="${m}" ${local.mode === m ? "selected" : ""}>${label}</option>`).join("")}
     </select>`;
 
   // While the session works the button stops it; ↵ still queues a message.
@@ -106,7 +106,7 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   autosize(input);
   local.composerFor = undefined;
   if (!state.selectedSessionId) local.worktree = false;
-  if (local.mode !== "normal") {
+  if (local.mode === "plan") {
     local.mode = "normal";
     refreshChips(state);
   }

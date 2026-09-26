@@ -29,9 +29,9 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${counter.toString(36)}`;
 }
 
-/** Only plan mode is stored; a normal message leaves the field out. */
-function plan(mode: MessageMode | undefined): "plan" | undefined {
-  return mode === "plan" ? mode : undefined;
+/** A normal message leaves the mode out. */
+function stored(mode: MessageMode | undefined): MessageMode | undefined {
+  return mode === "normal" ? undefined : mode;
 }
 
 function titleFrom(text: string): string {
@@ -67,8 +67,8 @@ export class RealSessionsApi implements SessionsApi {
     private readonly store: SessionStore,
     adapters: ProviderAdapter[],
     private readonly titler?: Titler,
-    /** Added to the end of a message sent in plan mode. */
-    private readonly planPrompt: () => string = () => "",
+    /** Added to the end of a message sent in plan or ask mode. */
+    private readonly modePrompt: (mode: MessageMode) => string = () => "",
   ) {
     for (const a of adapters) {
       this.adapters.set(a.id, a);
@@ -143,7 +143,7 @@ export class RealSessionsApi implements SessionsApi {
     }
     if (isActive(session)) {
       if (delivery === "queue") {
-        session.queued.push({ id: nextId("q"), text, createdAt: Date.now(), mode: plan(mode) });
+        session.queued.push({ id: nextId("q"), text, createdAt: Date.now(), mode: stored(mode) });
         this.emit();
         return;
       }
@@ -261,7 +261,7 @@ export class RealSessionsApi implements SessionsApi {
     const list = this.store.messagesOf(session.id);
     if (!list.some((m) => m.role === "user")) session.title = titleFrom(text);
     void this.retitle(session, text);
-    list.push({ id: nextId("m"), role: "user", text, createdAt: Date.now(), mode: plan(mode) });
+    list.push({ id: nextId("m"), role: "user", text, createdAt: Date.now(), mode: stored(mode) });
     for (let s: Session | undefined = session; s; s = s.parentId ? this.store.sessions.get(s.parentId) : undefined) {
       s.archived = false;
     }
@@ -274,14 +274,14 @@ export class RealSessionsApi implements SessionsApi {
     const turn = ++this.turnSeq;
     this.turns.set(session.id, turn);
     const live = () => this.turns.get(session.id) === turn;
-    const instruction = mode === "plan" ? this.planPrompt().trim() : "";
-    const done = this.runTurn(session, instruction ? `${text}\n\n${instruction}` : text, live).catch((err: unknown) => {
+    const instruction = mode && mode !== "normal" ? this.modePrompt(mode).trim() : "";
+    const done = this.runTurn(session, instruction ? `${text}\n\n${instruction}` : text, live, mode === "ask").catch((err: unknown) => {
       if (live()) this.endTurn(session, `Error: ${err instanceof Error ? err.message : String(err)}`);
     });
     this.running.set(session.id, done);
   }
 
-  private async runTurn(session: Session, text: string, live: () => boolean): Promise<void> {
+  private async runTurn(session: Session, text: string, live: () => boolean, readOnly: boolean): Promise<void> {
     const adapter = this.adapters.get(session.options.provider);
     if (!adapter) throw new Error(`No backend for ${session.options.provider}`);
     const list = this.store.messagesOf(session.id);
@@ -363,6 +363,7 @@ export class RealSessionsApi implements SessionsApi {
       options: session.options,
       providerSessionId: session.providerSessionId,
       forkOf: session.forkOf,
+      readOnly,
     };
     const result = await adapter.runTurn(target, text, sink);
     if (!live()) return;

@@ -104,8 +104,11 @@ export interface QueuedMessage {
   mode?: MessageMode;
 }
 
-/** "plan" adds an instruction to the message asking the agent to ask questions before coding. */
-export type MessageMode = "normal" | "plan";
+/**
+ * "plan" adds an instruction asking the agent to ask questions before coding.
+ * "ask" adds one asking it to just answer, and runs the turn read-only.
+ */
+export type MessageMode = "normal" | "plan" | "ask";
 
 /** "queue" waits for the running turn to end; "interrupt" stops it and sends now. */
 export type Delivery = "queue" | "interrupt";

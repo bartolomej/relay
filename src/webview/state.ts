@@ -19,7 +19,7 @@ export const local = {
   composerFor: undefined as string | undefined,
   /** The next new session works in its own git worktree. Off until toggled; resets once used. */
   worktree: false,
-  /** How the next message is sent; back to normal after each send. */
+  /** How the next message is sent. Plan goes back to normal after each send; ask stays until switched. */
   mode: "normal" as MessageMode,
 };
 

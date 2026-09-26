@@ -29,6 +29,35 @@ interface LimitRow {
   scope?: { model?: { display_name?: string | null } | null } | null;
 }
 
+/** All an Ask-mode turn gets: reading, searching and the web, nothing that writes. */
+const READ_ONLY_TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch"];
+
+/**
+ * Offers only the read-only tools, and a hook turns down anything else that
+ * shows up anyway (MCP servers from the user's settings), before any allow rule applies.
+ */
+const READ_ONLY: Partial<Sdk.Options> = {
+  tools: READ_ONLY_TOOLS,
+  hooks: {
+    PreToolUse: [
+      {
+        hooks: [
+          async (input) =>
+            input.hook_event_name === "PreToolUse" && !READ_ONLY_TOOLS.includes(input.tool_name)
+              ? {
+                  hookSpecificOutput: {
+                    hookEventName: "PreToolUse",
+                    permissionDecision: "deny",
+                    permissionDecisionReason: "Ask mode is read-only: read and search files, but don't change anything.",
+                  },
+                }
+              : {},
+        ],
+      },
+    ],
+  },
+};
+
 interface ActiveTurn {
   query: Sdk.Query;
   done: Promise<void>;
@@ -143,6 +172,7 @@ export class ClaudeAdapter implements ProviderAdapter {
         includePartialMessages: true,
         pathToClaudeCodeExecutable: this.executable(),
         canUseTool: (name, toolInput, opts) => this.ask(sink, target.cwd, name, toolInput, opts.suggestions),
+        ...(target.readOnly ? READ_ONLY : {}),
         ...resume,
       },
     });

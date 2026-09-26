@@ -59,7 +59,7 @@ async function createApi(context: vscode.ExtensionContext): Promise<SessionsApi>
     await createStore(context),
     [new ClaudeAdapter(() => setting("claudePath")), new CodexAdapter(() => setting("codexPath"))],
     titler,
-    () => setting("planPrompt") || "",
+    (mode) => (mode === "normal" ? "" : setting(mode === "plan" ? "planPrompt" : "askPrompt") || ""),
   );
 }
 

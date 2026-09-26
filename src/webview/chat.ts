@@ -52,7 +52,9 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
 }
 
 function modeTag(mode: MessageMode | undefined): string {
-  return mode === "plan" ? `<span class="mode-tag" title="Sent in plan mode: the agent was asked to ask questions before writing code">Plan</span>` : "";
+  if (mode === "plan") return `<span class="mode-tag" title="Sent in plan mode: the agent was asked to ask questions before writing code">Plan</span>`;
+  if (mode === "ask") return `<span class="mode-tag" title="Sent in ask mode: the agent was asked to just answer, with read-only access">Ask</span>`;
+  return "";
 }
 
 function approval(s: Session): string {

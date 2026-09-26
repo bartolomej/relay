@@ -18,6 +18,8 @@ export interface TurnTarget {
   providerSessionId?: string;
   /** Set on a fork's first turn: branch off this conversation, optionally at a message. */
   forkOf?: { providerSessionId: string; atProviderMessageId?: string };
+  /** Ask mode: the agent may read and search, but not change anything. */
+  readOnly?: boolean;
 }
 
 /** Callbacks an adapter drives while a turn runs. */

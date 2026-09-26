@@ -63,6 +63,18 @@ interface RpcMessage {
 
 /** The "Auto" preset in Codex's /approvals: work freely in the workspace, ask for anything beyond it. */
 const AUTO = { approvalPolicy: "on-request", sandbox: "workspace-write" } as const;
+/** Ask mode: the sandbox allows reading only, and nothing may ask to go beyond it. */
+const READ_ONLY = { approvalPolicy: "never", sandbox: "read-only" } as const;
+
+/**
+ * A turn's sandbox carries over to the thread's later turns, so every turn sets
+ * its own. These match the presets above.
+ */
+const TURN_AUTO = {
+  approvalPolicy: AUTO.approvalPolicy,
+  sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false },
+};
+const TURN_READ_ONLY = { approvalPolicy: READ_ONLY.approvalPolicy, sandboxPolicy: { type: "readOnly", networkAccess: false } };
 
 // -- JSON-RPC over the app-server's stdio, one JSON object per line ----------
 
@@ -220,7 +232,7 @@ export class CodexAdapter implements ProviderAdapter {
     const server = await this.connect();
     const model = this.models.find((m) => m.model === target.options.model);
     const effort = model && model.supportedReasoningEfforts.some((e) => e.reasoningEffort === target.options.effort) ? target.options.effort : undefined;
-    const settings = { model: target.options.model, cwd: target.cwd, ...AUTO };
+    const settings = { model: target.options.model, cwd: target.cwd, ...(target.readOnly ? READ_ONLY : AUTO) };
 
     let threadId: string;
     if (target.forkOf) {
@@ -252,6 +264,7 @@ export class CodexAdapter implements ProviderAdapter {
         input: [{ type: "text", text, text_elements: [] }],
         model: target.options.model,
         ...(effort ? { effort } : {}),
+        ...(target.readOnly ? TURN_READ_ONLY : TURN_AUTO),
       });
       const turn = this.active.get(threadId);
       if (turn) turn.turnId = started.turn.id;
