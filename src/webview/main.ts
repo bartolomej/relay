@@ -15,6 +15,13 @@ let shellBuilt = false;
  */
 let leftHtml = "";
 let chatHtml = "";
+/**
+ * Whether the chat keeps scrolling to the newest output. Scrolling up turns it
+ * off; scrolling back to the bottom turns it on again.
+ */
+let followOutput = true;
+let lastScrollTop = 0;
+let followedSessionId: string | undefined;
 const app = document.getElementById("app") as HTMLDivElement;
 
 function buildShell(layout: UiState["layout"]): void {
@@ -45,15 +52,29 @@ function render(): void {
   const html = renderChat(state);
   if (!chat || html === chatHtml) return;
   const messages = document.getElementById("messages");
-  const stickToBottom = !messages || messages.scrollHeight - messages.scrollTop - messages.clientHeight < 40;
+  // Catch a scroll the user made since the last scroll event, before the element is replaced.
+  if (messages) trackScroll(messages);
+  if (state.selectedSessionId !== followedSessionId) {
+    followedSessionId = state.selectedSessionId;
+    followOutput = true;
+  }
   const prevScroll = messages ? messages.scrollTop : 0;
 
   chat.outerHTML = `<div id="chat" class="chat-wrap">${html}</div>`;
   chatHtml = html;
 
   const nextMessages = document.getElementById("messages");
-  if (nextMessages) nextMessages.scrollTop = stickToBottom ? nextMessages.scrollHeight : prevScroll;
+  if (nextMessages) {
+    nextMessages.scrollTop = followOutput ? nextMessages.scrollHeight : prevScroll;
+    lastScrollTop = nextMessages.scrollTop;
+  }
   updatePinned();
+}
+
+function trackScroll(box: HTMLElement): void {
+  if (box.scrollHeight - box.scrollTop - box.clientHeight < 2) followOutput = true;
+  else if (box.scrollTop < lastScrollTop) followOutput = false;
+  lastScrollTop = box.scrollTop;
 }
 
 /**
@@ -180,6 +201,17 @@ app.addEventListener("click", (e) => {
 });
 
 // #messages is replaced on every render, so listen in the capture phase on the stable root.
-app.addEventListener("scroll", updatePinned, true);
+app.addEventListener(
+  "scroll",
+  (e) => {
+    if ((e.target as HTMLElement).id === "messages") trackScroll(e.target as HTMLElement);
+    updatePinned();
+  },
+  true,
+);
+// A wheel-up stops following right away, even if a render lands before the scroll event.
+app.addEventListener("wheel", (e) => {
+  if (e.deltaY < 0 && (e.target as HTMLElement).closest("#messages")) followOutput = false;
+});
 
 post({ type: "ready" });
