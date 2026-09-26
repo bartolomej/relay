@@ -7,7 +7,14 @@ import type { SessionsApi } from "../api/SessionsApi";
 import { workspaceCwd } from "../panel/PanelHost";
 import { RemoteServer } from "./server";
 import { remoteStatus } from "./status";
-import { findTailscale, HTTPS_PORT, serve, tailnetName, unserve } from "./tailscale";
+import { idleSeconds } from "./idle";
+import { down, findTailscale, HTTPS_PORT, serve, tailnetName, unserve, up } from "./tailscale";
+
+/** Remote turns itself off after this long, in case it's forgotten. */
+const ON_FOR_MS = 24 * 60 * 60 * 1000;
+/** No input on the Mac for this long means the user is away; input after that means they're back. */
+const AWAY_SECONDS = 10 * 60;
+const CHECK_MS = 30_000;
 
 /** Which window serves the phone. Only one project at a time; a newer one takes over. */
 interface Owner {
@@ -21,8 +28,14 @@ interface Owner {
  */
 export class RemoteAccess implements vscode.Disposable {
   private server: RemoteServer | undefined;
-  /** Set once `tailscale serve` points at our server, so turning off can undo it. */
+  /** Set once Relay brought Tailscale up, so turning off can take it down again. */
   private tailscale: string | undefined;
+  /** When Remote turns itself off. Wall-clock time, since timers pause while the Mac sleeps. */
+  private offAt = 0;
+  private check: ReturnType<typeof setInterval> | undefined;
+  private lastCheck = 0;
+  /** The Mac has gone unused (or slept) since Remote was turned on. */
+  private away = false;
   private key = "";
   /** What the QR page shows: the tailnet address, or why there isn't one. */
   private address: string | undefined;
@@ -55,7 +68,10 @@ export class RemoteAccess implements vscode.Disposable {
     const owner = this.readOwner();
     const wasOwner = !!owner && owner.id === this.id;
     if (wasOwner) fs.rmSync(this.ownerFile, { force: true });
-    if (this.tailscale && wasOwner) await unserve(this.tailscale);
+    if (this.tailscale && wasOwner) {
+      await unserve(this.tailscale);
+      await down(this.tailscale);
+    }
     this.stop();
   }
 
@@ -83,6 +99,10 @@ export class RemoteAccess implements vscode.Disposable {
     this.server = server;
     this.claim();
     remoteStatus.set(true);
+    this.offAt = Date.now() + ON_FOR_MS;
+    this.away = false;
+    this.lastCheck = Date.now();
+    this.check = setInterval(() => void this.checkPresence(), CHECK_MS);
 
     let address: string | undefined;
     let problem: string | undefined;
@@ -91,9 +111,10 @@ export class RemoteAccess implements vscode.Disposable {
       problem = "Tailscale isn't installed on this Mac. Install it from tailscale.com, sign in on the Mac and the phone with the same account, then turn Remote off and on.";
     } else {
       try {
+        await up(cli);
+        this.tailscale = cli;
         const name = await tailnetName(cli);
         await serve(cli, port);
-        this.tailscale = cli;
         address = `https://${name}:${HTTPS_PORT}/`;
       } catch (e) {
         problem = e instanceof Error ? e.message : String(e);
@@ -106,12 +127,34 @@ export class RemoteAccess implements vscode.Disposable {
   }
 
   private stop(): void {
+    if (this.check) clearInterval(this.check);
+    this.check = undefined;
     fs.unwatchFile(this.ownerFile);
     if (this.server) this.server.close();
     this.server = undefined;
     this.tailscale = undefined;
     if (this.panel) this.panel.dispose();
     remoteStatus.set(false);
+  }
+
+  // -- turning itself off ---------------------------------------------------
+
+  /** Off after 24 hours, or as soon as the user is back at the Mac after being away. */
+  private async checkPresence(): Promise<void> {
+    const now = Date.now();
+    const slept = now - this.lastCheck > 5 * 60_000;
+    this.lastCheck = now;
+    if (!this.server) return;
+    if (now >= this.offAt) return this.autoOff("Remote access turned off after 24 hours.");
+    const idle = await idleSeconds();
+    if (idle === undefined) return;
+    if (slept || idle >= AWAY_SECONDS) this.away = true;
+    else if (this.away && idle < 60) await this.autoOff("Remote access turned off because you're back at the Mac.");
+  }
+
+  private async autoOff(reason: string): Promise<void> {
+    await this.turnOff();
+    void vscode.window.showInformationMessage(reason);
   }
 
   // -- one window at a time ------------------------------------------------
@@ -215,6 +258,7 @@ function codePage(address: string | undefined, localAddress: string, key: string
   <h1>Remote access is on for ${esc(project)}</h1>
   ${body}
   <p class="muted">Anyone with this code can run your agents. <b>Relay: Reset Remote Access Key</b> makes a new one and signs out every phone.</p>
+  <p class="muted">Tailscale is connected only while Remote is on. Remote turns itself off after 24 hours, or when you use this Mac again after being away.</p>
   <p class="muted">While Remote is on, this Mac stays awake until all agents are done. Closing the lid still puts it to sleep.</p>
 </body>
 </html>`;

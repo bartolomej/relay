@@ -59,3 +59,18 @@ export async function serve(cli: string, localPort: number): Promise<void> {
 export async function unserve(cli: string): Promise<void> {
   await run(cli, ["serve", `--https=${HTTPS_PORT}`, "off"], 10_000);
 }
+
+/**
+ * Connects this Mac to the tailnet. Tailscale is only up while Remote is on.
+ * If the Mac isn't signed in, Tailscale waits for a login; the error then
+ * carries the link it printed.
+ */
+export async function up(cli: string): Promise<void> {
+  const res = await run(cli, ["up"], 20_000);
+  if (!res.ok) throw new Error(res.output || "tailscale up failed.");
+}
+
+/** Disconnects this Mac from the tailnet, so nothing can reach it. */
+export async function down(cli: string): Promise<void> {
+  await run(cli, ["down"], 10_000);
+}
