@@ -223,6 +223,8 @@ textarea, input, select { font: inherit; color: inherit; }
 .app-sidebar .ctx-label { display: none; }
 .app-wide .ctx .meter { width: 64px; }
 .chat-head .icon-btn.on { color: var(--run); }
+.chat-head .icon-btn:disabled { cursor: default; background: none; }
+.chat-head .icon-btn:disabled:not(.on) { opacity: 0.5; }
 .run-clock {
   height: 22px; display: inline-flex; align-items: center; gap: 4px; padding: 0 5px; border-radius: 4px; flex-shrink: 0;
   font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap;

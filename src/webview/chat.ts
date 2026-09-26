@@ -81,6 +81,29 @@ function keepAwakeToggle(state: UiState): string {
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleKeepAwake" title="${title}" aria-label="Keep awake while working" aria-pressed="${on}">${on ? icons.coffee : icons.moon}</button>`;
 }
 
+/**
+ * On: the agent works in a git worktree of its own, merged back on Complete.
+ * Only a new session can switch it; afterwards it shows where the session works.
+ */
+function worktreeToggle(state: UiState, s: Session | undefined): string {
+  if (!state.worktrees && !(s && s.worktree)) return "";
+  if (!s) {
+    const on = local.worktree;
+    const title = on
+      ? "This session will work in its own git worktree and merge back on Complete. Click to work in the project folder."
+      : "This session will work in the project folder. Click to give it its own git worktree, merged back on Complete.";
+    return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleWorktree" title="${title}" aria-label="Work in a git worktree" aria-pressed="${on}">${icons.worktree}</button>`;
+  }
+  const wt = s.worktree;
+  const on = !!(wt || s.useWorktree);
+  const title = wt
+    ? `Working in a worktree on ${wt.branch}. Complete merges it into ${wt.base}.`
+    : on
+      ? "Works in a git worktree, created with the first message."
+      : "Works in the project folder. Only a new session can use a worktree.";
+  return `<button class="icon-btn ${on ? "on" : ""}" disabled title="${esc(title)}" aria-label="${esc(title)}" aria-pressed="${on}">${icons.worktree}</button>`;
+}
+
 /** How long the current run has worked, against its limit; clicking sets the limit. */
 function runClock(state: UiState, s: Session): string {
   const running = isActive(s) && s.runStartedAt !== undefined;
@@ -94,7 +117,7 @@ function runClock(state: UiState, s: Session): string {
 
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
-    return `<div class="chat-head"><span class="title grow">New session</span>${keepAwakeToggle(state)}</div>`;
+    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${keepAwakeToggle(state)}</div>`;
   }
   const status =
     s.status === "running"
@@ -115,12 +138,13 @@ function head(state: UiState, s: Session | undefined): string {
     ? ""
     : s.archived
       ? `<span class="muted">Completed</span>`
-      : `<button class="btn btn-complete" data-action="complete" data-id="${esc(s.id)}" title="Mark complete and hide from the list">${icons.check} Complete</button>`;
+      : `<button class="btn btn-complete" data-action="complete" data-id="${esc(s.id)}" title="${s.worktree ? esc(`Merge ${s.worktree.branch} into ${s.worktree.base}, then mark complete`) : "Mark complete and hide from the list"}">${icons.check} Complete</button>`;
   return `<div class="chat-head">
     ${status}
     <span class="title ellipsis">${esc(s.title)}</span>${sub}<span class="grow"></span>
     ${ctx}
     ${runClock(state, s)}
+    ${worktreeToggle(state, s)}
     ${keepAwakeToggle(state)}
     <button class="icon-btn" data-action="fork" data-id="${esc(s.id)}" title="Fork session" aria-label="Fork session">${icons.fork}</button>
     ${isActive(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop session">${icons.stop}</button>` : ""}

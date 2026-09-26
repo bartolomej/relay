@@ -92,10 +92,12 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
-  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery });
+  const worktree = !state.selectedSessionId && state.worktrees && local.worktree;
+  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree });
   input.value = "";
   autosize(input);
   local.composerFor = undefined;
+  if (!state.selectedSessionId) local.worktree = false;
 }
 
 /** Fits the box to its text, up to the CSS max-height (10 lines); past that it scrolls. */

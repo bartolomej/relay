@@ -18,6 +18,8 @@ export interface UiState {
   showAllPast: boolean;
   /** Keep the computer awake while an agent works; undefined where that isn't supported. */
   keepAwake?: boolean;
+  /** New sessions can work in a git worktree; false when the project isn't a git repo. */
+  worktrees: boolean;
   now: number;
 }
 
@@ -27,7 +29,7 @@ export type FromWebview =
   | { type: "ready" }
   | { type: "selectSession"; sessionId: string }
   | { type: "newSession" }
-  | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery }
+  | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean }
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }
   | { type: "fork"; sessionId: string; messageId?: string }

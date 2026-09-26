@@ -2,6 +2,7 @@ import type { SessionsApi, Unsubscribe } from "../api/SessionsApi";
 import {
   isActive,
   minutesLabel,
+  workDir,
   type ApprovalDecision,
   type Delivery,
   type Message,
@@ -10,10 +11,12 @@ import {
   type ProviderUsage,
   type Session,
   type SessionOptions,
+  type Worktree,
 } from "../api/types";
 import type { ProviderAdapter, TurnSink, TurnTarget } from "./adapter";
 import type { SessionStore } from "./store";
 import type { Titler } from "./titles";
+import { createWorktree, mergeWorktree } from "./worktree";
 
 const MODELS_REFRESH_MS = 30 * 60 * 1000;
 const USAGE_REFRESH_MS = 5 * 60 * 1000;
@@ -49,6 +52,10 @@ export class RealSessionsApi implements SessionsApi {
   private timers: Array<ReturnType<typeof setInterval>> = [];
   /** Latest title request per session; an older answer arriving late is dropped. */
   private titleRequests = new Map<string, number>();
+  /** Sessions whose worktree is being merged back right now. */
+  private merging = new Set<string>();
+  /** Sessions resolving merge conflicts; completed again once that turn ends. */
+  private mergeRetries = new Set<string>();
 
   constructor(
     private readonly store: SessionStore,
@@ -91,7 +98,7 @@ export class RealSessionsApi implements SessionsApi {
 
   // -- writes --------------------------------------------------------------
 
-  async createSession(options: SessionOptions, cwd: string): Promise<Session> {
+  async createSession(options: SessionOptions, cwd: string, useWorktree?: boolean): Promise<Session> {
     const now = Date.now();
     const session: Session = {
       id: nextId("s"),
@@ -106,6 +113,7 @@ export class RealSessionsApi implements SessionsApi {
       archived: false,
       queued: [],
       transcriptPath: "",
+      useWorktree: useWorktree || undefined,
     };
     // A new session is a good moment to pick up models released since the last look.
     void this.refreshProviders();
@@ -211,6 +219,8 @@ export class RealSessionsApi implements SessionsApi {
   }
 
   async archiveSession(sessionId: string): Promise<void> {
+    const session = this.store.sessions.get(sessionId);
+    if (session && session.worktree && !isActive(session) && !(await this.mergeBack(session, session.worktree))) return;
     const archive = (id: string) => {
       const s = this.store.sessions.get(id);
       if (!s) return;
@@ -334,9 +344,13 @@ export class RealSessionsApi implements SessionsApi {
       },
     };
 
+    if (session.useWorktree && !session.worktree) {
+      session.worktree = await createWorktree(session.cwd, session.id, session.title);
+      this.emit();
+    }
     const target: TurnTarget = {
       sessionId: session.id,
-      cwd: session.cwd,
+      cwd: workDir(session),
       options: session.options,
       providerSessionId: session.providerSessionId,
       forkOf: session.forkOf,
@@ -360,11 +374,16 @@ export class RealSessionsApi implements SessionsApi {
     session.unread = true;
     session.lastActivityAt = Date.now();
     this.emit();
+    if (this.mergeRetries.has(session.id)) {
+      if (error) this.mergeRetries.delete(session.id);
+      else void this.archiveSession(session.id);
+    }
   }
 
   /** Stops the running turn and waits for the provider to let go, without flagging it unread. */
   private async interrupt(session: Session): Promise<void> {
     this.turns.delete(session.id);
+    this.mergeRetries.delete(session.id);
     const resolve = this.approvals.get(session.id);
     if (resolve) resolve("deny");
     session.pendingApproval = undefined;
@@ -403,6 +422,52 @@ export class RealSessionsApi implements SessionsApi {
     const text = `Stopped: reached the ${minutesLabel(limitMs)} time limit.`;
     this.store.messagesOf(session.id).push({ id: nextId("m"), role: "assistant", text, createdAt: Date.now() });
     session.unread = true;
+    session.lastActivityAt = Date.now();
+    this.emit();
+  }
+
+  /**
+   * Merges the session's worktree into the branch it started from. On a
+   * conflict the agent is asked to resolve it once, and the session completes
+   * when it's done; otherwise it stays open with a note saying why.
+   */
+  private async mergeBack(session: Session, wt: Worktree): Promise<boolean> {
+    if (this.merging.has(session.id)) return false;
+    const sharing = [...this.store.sessions.values()].filter((s) => s.worktree && s.worktree.path === wt.path);
+    if (sharing.some(isActive)) {
+      this.note(session, "A fork is still working in this worktree. Complete again once it's done.");
+      return false;
+    }
+    const retry = this.mergeRetries.delete(session.id);
+    this.merging.add(session.id);
+    const result = await mergeWorktree(session.cwd, wt, session.title).finally(() => this.merging.delete(session.id));
+    if (result.ok) {
+      for (const s of sharing) {
+        s.worktree = undefined;
+        s.useWorktree = undefined;
+      }
+      this.note(session, result.merged ? `Merged ${wt.branch} into ${wt.base} and removed the worktree.` : `No changes to merge; removed the worktree and ${wt.branch}.`);
+      return true;
+    }
+    if ("conflicts" in result) {
+      const files = result.conflicts.join(", ");
+      if (retry) {
+        this.note(session, `${wt.branch} still conflicts with ${wt.base} in ${files}. Resolve them in the worktree, then complete again.`);
+        return false;
+      }
+      this.mergeRetries.add(session.id);
+      this.startTurn(
+        session,
+        `Completing this session merges your branch ${wt.branch} into ${wt.base}, but ${wt.base} has changed since and conflicts in: ${files}. Run \`git merge ${wt.base}\`, resolve the conflicts and commit the merge.`,
+      );
+      return false;
+    }
+    this.note(session, `Couldn't merge ${wt.branch} into ${wt.base}: ${result.error}`);
+    return false;
+  }
+
+  private note(session: Session, text: string): void {
+    this.store.messagesOf(session.id).push({ id: nextId("m"), role: "assistant", text, createdAt: Date.now() });
     session.lastActivityAt = Date.now();
     this.emit();
   }

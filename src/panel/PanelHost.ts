@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
-import { isActive, minutesLabel } from "../api/types";
+import { isActive, minutesLabel, workDir } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
+import { isGitRepo } from "../backend/worktree";
 import { findLinkable, resolveIn } from "./fileLinks";
 import type { FromWebview, Layout, ToWebview, UiState } from "./protocol";
 
@@ -18,6 +19,7 @@ export class PanelHost implements vscode.Disposable {
   private showAllPast = false;
   private disposables: vscode.Disposable[] = [];
   private pushQueued = false;
+  private gitRepo = false;
 
   constructor(
     private readonly webview: vscode.Webview,
@@ -26,6 +28,10 @@ export class PanelHost implements vscode.Disposable {
     private readonly isVisible: () => boolean,
   ) {
     this.disposables.push(webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m)));
+    void isGitRepo(workspaceCwd()).then((yes) => {
+      this.gitRepo = yes;
+      this.schedulePush();
+    });
     const unsubscribe = api.onDidChange(() => this.schedulePush());
     this.disposables.push({ dispose: unsubscribe });
     this.disposables.push(
@@ -93,7 +99,7 @@ export class PanelHost implements vscode.Disposable {
       this.viewedUnread = selected.id;
     }
     const messages = this.selectedSessionId ? await this.api.getMessages(this.selectedSessionId) : [];
-    const linkable = selected ? findLinkable(messages.map((m) => m.text), selected.cwd) : [];
+    const linkable = selected ? findLinkable(messages.map((m) => m.text), workDir(selected)) : [];
     const state: UiState = {
       layout: this.layout,
       providers,
@@ -105,6 +111,7 @@ export class PanelHost implements vscode.Disposable {
       pastWindowMs: PAST_WINDOW_MS,
       showAllPast: this.showAllPast,
       keepAwake: keepAwakeSupported ? keepAwakeEnabled() : undefined,
+      worktrees: this.gitRepo,
       now: Date.now(),
     };
     await this.post({ type: "state", state });
@@ -130,7 +137,7 @@ export class PanelHost implements vscode.Disposable {
       case "send": {
         let id = m.sessionId;
         if (!id) {
-          const created = await this.api.createSession(m.options, workspaceCwd());
+          const created = await this.api.createSession(m.options, workspaceCwd(), m.worktree);
           id = created.id;
           this.select(id);
         }
@@ -182,7 +189,7 @@ export class PanelHost implements vscode.Disposable {
   /** Opens a file the chat mentions: beside the Relay tab, or in the active editor from the sidebar. */
   private async openFile(sessionId: string, file: string, line?: number): Promise<void> {
     const session = (await this.api.listSessions()).find((s) => s.id === sessionId);
-    const uri = vscode.Uri.file(resolveIn(session ? session.cwd : workspaceCwd(), file));
+    const uri = vscode.Uri.file(resolveIn(session ? workDir(session) : workspaceCwd(), file));
     let stat: vscode.FileStat;
     try {
       stat = await vscode.workspace.fs.stat(uri);

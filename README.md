@@ -76,6 +76,7 @@ Nothing fires for the session you have open, or between queued turns.
 
 - **Run timer and time limit.** The chat header shows how long the current run has been going. Click the timer to set a limit (e.g. `30m` or `1h30m`); the agent is stopped when it's reached.
 - **Keep awake.** While an agent is working, Relay keeps your Mac from idle-sleeping (the display can still sleep). Toggle it with the cup icon in the chat header.
+- **Worktrees.** Before starting a new session, click the branch icon in the chat header to have the agent work in its own git worktree (in `~/.relay/worktrees`, on a `relay/…` branch, with `node_modules` linked from the project). Your project folder stays untouched while it works. **Complete** commits what's left, merges the branch into the one you started from with a merge commit, and removes the worktree. If your branch has moved on and conflicts, the agent is asked to resolve them first. Off by default.
 
 ### Sessions live in your project
 

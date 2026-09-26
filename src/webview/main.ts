@@ -164,6 +164,10 @@ app.addEventListener("click", (e) => {
     case "toggleKeepAwake":
       post({ type: "toggleKeepAwake" });
       break;
+    case "toggleWorktree":
+      local.worktree = !local.worktree;
+      render();
+      break;
     case "setRunLimit":
       post({ type: "setRunLimit", sessionId: id });
       break;

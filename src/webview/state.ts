@@ -17,6 +17,8 @@ export const local = {
   expandedPin: undefined as string | undefined,
   composer: undefined as SessionOptions | undefined,
   composerFor: undefined as string | undefined,
+  /** The next new session works in its own git worktree. Off until toggled; resets once used. */
+  worktree: false,
 };
 
 export function selected(state: UiState): Session | undefined {

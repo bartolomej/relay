@@ -81,6 +81,20 @@ export interface Session {
   forkOf?: { providerSessionId: string; atProviderMessageId?: string };
   /** Path of the transcript file on disk. */
   transcriptPath: string;
+  /** Work in a git worktree of its own: created on the first message, merged back on Complete. */
+  useWorktree?: boolean;
+  worktree?: Worktree;
+}
+
+/** A session's own checkout of the project, on a branch off the one it started from. */
+export interface Worktree {
+  /** The worktree's root folder. */
+  path: string;
+  /** Where the agent works: the same subfolder of the worktree that the session's folder is of the project. */
+  cwd: string;
+  branch: string;
+  /** The branch it started from and merges back into. */
+  base: string;
 }
 
 export interface QueuedMessage {
@@ -151,6 +165,11 @@ export interface Message {
 }
 
 export type ApprovalDecision = "allow" | "deny" | "always";
+
+/** The folder the agent works in. */
+export function workDir(s: Session): string {
+  return s.worktree ? s.worktree.cwd : s.cwd;
+}
 
 export function isActive(s: Session): boolean {
   return s.status === "running" || s.status === "waiting";

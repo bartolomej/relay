@@ -20,7 +20,8 @@ export interface SessionsApi {
   listSessions(): Promise<Session[]>;
   getMessages(sessionId: string): Promise<Message[]>;
 
-  createSession(options: SessionOptions, cwd: string): Promise<Session>;
+  /** With `useWorktree`, the agent works in a git worktree created on the first message. */
+  createSession(options: SessionOptions, cwd: string, useWorktree?: boolean): Promise<Session>;
   /**
    * Sends right away when the session is idle. While it's working, "queue"
    * holds the message until the turn ends and "interrupt" stops the turn first.
@@ -37,7 +38,10 @@ export interface SessionsApi {
 
   /** The user has looked at the finished output. */
   markSeen(sessionId: string): Promise<void>;
-  /** Marks the session and its finished forks complete. */
+  /**
+   * Marks the session and its finished forks complete. A session in a worktree
+   * is merged back first; on a conflict or error it stays open with a note.
+   */
   archiveSession(sessionId: string): Promise<void>;
 
   /** Fires whenever anything above would return something different. */

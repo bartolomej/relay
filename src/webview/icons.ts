@@ -21,5 +21,6 @@ export const icons = {
   moon: wrap('<path d="M13 9.6A5.5 5.5 0 116.4 3a4.4 4.4 0 006.6 6.6z"/>'),
   claude: wrap('<path d="M6 1.2v9.6M1.2 6h9.6M2.6 2.6l6.8 6.8M9.4 2.6l-6.8 6.8"/>', 12),
   codex: wrap('<path d="M6 1.2l4.2 2.4v4.8L6 10.8 1.8 8.4V3.6z"/>', 12),
+  worktree: wrap('<circle cx="4.5" cy="3" r="1.5"/><circle cx="4.5" cy="13" r="1.5"/><circle cx="11.5" cy="8" r="1.5"/><path d="M4.5 4.5v7M4.5 4.5c0 2.2 7 1.3 7 2M11.5 9.5c0 .7-7-.2-7 2"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };
