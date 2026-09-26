@@ -101,7 +101,11 @@ export interface QueuedMessage {
   id: string;
   text: string;
   createdAt: number;
+  mode?: MessageMode;
 }
+
+/** "plan" adds an instruction to the message asking the agent to ask questions before coding. */
+export type MessageMode = "normal" | "plan";
 
 /** "queue" waits for the running turn to end; "interrupt" stops it and sends now. */
 export type Delivery = "queue" | "interrupt";
@@ -162,6 +166,8 @@ export interface Message {
   streaming?: boolean;
   /** Provider id of the last assistant message folded into this one; a fork branches here. */
   providerMessageId?: string;
+  /** How a user message was sent; the text shown is what the user typed. */
+  mode?: MessageMode;
 }
 
 export type ApprovalDecision = "allow" | "deny" | "always";

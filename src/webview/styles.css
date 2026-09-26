@@ -246,6 +246,10 @@ textarea, input, select { font: inherit; color: inherit; }
   background: var(--user-bg); color: var(--fg-strong); white-space: pre-wrap; word-wrap: break-word;
 }
 .app-wide .bubble { margin: 0 -28px; padding: 12px 28px; }
+.mode-tag {
+  display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 8px; font-size: 10.5px; line-height: 16px; vertical-align: 1px;
+  border: 1px solid var(--run-border); background: var(--run-bg); color: var(--run);
+}
 body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
 /* Sticks to the top of the scroll area while the reply scrolls under it. The
    strip of --bg around it hides the text passing behind. Capped at four lines
@@ -349,6 +353,7 @@ body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
   background-repeat: no-repeat; background-position: right 7px center;
 }
 .chip:hover { border-color: var(--fg-muted); background-color: var(--bg-hover); }
+.chip.chip-on { border-color: var(--run-border); background-color: var(--run-bg); color: var(--run); }
 .chip-wrap { position: relative; display: inline-flex; align-items: center; }
 .chip-wrap .dot { position: absolute; left: 8px; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; }
 .chip-wrap.has-dot .chip { padding-left: 20px; }

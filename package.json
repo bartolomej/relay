@@ -97,6 +97,12 @@
           "default": true,
           "description": "Keep the computer from idle-sleeping while an agent is working (macOS). The display can still sleep."
         },
+        "relay.planPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "Before writing any code, let's plan. Read whatever you need to understand the request, but don't edit files or run anything that changes state.\n\nThen briefly say how you'd approach it, and ask me the questions you need answered to do it well: anything unclear, missing, or with more than one reasonable way to go. Number them. For each, list the options you see and say which you'd pick and why. Only ask what actually changes the result; decide the rest from the code and sensible defaults.\n\nStop there and wait for my answers.",
+          "markdownDescription": "Added to the end of a message sent in **Plan** mode (the dropdown next to effort). The chat shows only what you typed."
+        },
         "relay.notifications": {
           "type": "string",
           "enum": [

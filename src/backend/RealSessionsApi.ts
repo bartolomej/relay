@@ -6,6 +6,7 @@ import {
   type ApprovalDecision,
   type Delivery,
   type Message,
+  type MessageMode,
   type ProviderId,
   type ProviderInfo,
   type ProviderUsage,
@@ -26,6 +27,11 @@ let counter = 0;
 function nextId(prefix: string): string {
   counter += 1;
   return `${prefix}-${Date.now().toString(36)}-${counter.toString(36)}`;
+}
+
+/** Only plan mode is stored; a normal message leaves the field out. */
+function plan(mode: MessageMode | undefined): "plan" | undefined {
+  return mode === "plan" ? mode : undefined;
 }
 
 function titleFrom(text: string): string {
@@ -61,6 +67,8 @@ export class RealSessionsApi implements SessionsApi {
     private readonly store: SessionStore,
     adapters: ProviderAdapter[],
     private readonly titler?: Titler,
+    /** Added to the end of a message sent in plan mode. */
+    private readonly planPrompt: () => string = () => "",
   ) {
     for (const a of adapters) {
       this.adapters.set(a.id, a);
@@ -122,7 +130,7 @@ export class RealSessionsApi implements SessionsApi {
     return session;
   }
 
-  async sendMessage(sessionId: string, text: string, options?: Partial<SessionOptions>, delivery: Delivery = "queue"): Promise<void> {
+  async sendMessage(sessionId: string, text: string, options?: Partial<SessionOptions>, delivery: Delivery = "queue", mode?: MessageMode): Promise<void> {
     const session = this.store.sessions.get(sessionId);
     if (!session) return;
     if (options) {
@@ -135,13 +143,13 @@ export class RealSessionsApi implements SessionsApi {
     }
     if (isActive(session)) {
       if (delivery === "queue") {
-        session.queued.push({ id: nextId("q"), text, createdAt: Date.now() });
+        session.queued.push({ id: nextId("q"), text, createdAt: Date.now(), mode: plan(mode) });
         this.emit();
         return;
       }
       await this.interrupt(session);
     }
-    this.startTurn(session, text);
+    this.startTurn(session, text, false, mode);
   }
 
   async removeQueued(sessionId: string, queuedId: string): Promise<void> {
@@ -249,11 +257,11 @@ export class RealSessionsApi implements SessionsApi {
   // -- turns ---------------------------------------------------------------
 
   /** `continuing` is a queued follow-up, which stays part of the same run. */
-  private startTurn(session: Session, text: string, continuing = false): void {
+  private startTurn(session: Session, text: string, continuing = false, mode?: MessageMode): void {
     const list = this.store.messagesOf(session.id);
     if (!list.some((m) => m.role === "user")) session.title = titleFrom(text);
     void this.retitle(session, text);
-    list.push({ id: nextId("m"), role: "user", text, createdAt: Date.now() });
+    list.push({ id: nextId("m"), role: "user", text, createdAt: Date.now(), mode: plan(mode) });
     for (let s: Session | undefined = session; s; s = s.parentId ? this.store.sessions.get(s.parentId) : undefined) {
       s.archived = false;
     }
@@ -266,7 +274,8 @@ export class RealSessionsApi implements SessionsApi {
     const turn = ++this.turnSeq;
     this.turns.set(session.id, turn);
     const live = () => this.turns.get(session.id) === turn;
-    const done = this.runTurn(session, text, live).catch((err: unknown) => {
+    const instruction = mode === "plan" ? this.planPrompt().trim() : "";
+    const done = this.runTurn(session, instruction ? `${text}\n\n${instruction}` : text, live).catch((err: unknown) => {
       if (live()) this.endTurn(session, `Error: ${err instanceof Error ? err.message : String(err)}`);
     });
     this.running.set(session.id, done);
@@ -369,7 +378,7 @@ export class RealSessionsApi implements SessionsApi {
     for (const m of list) m.streaming = false;
     if (error) list.push({ id: nextId("m"), role: "assistant", text: error, createdAt: Date.now() });
     const next = error ? undefined : session.queued.shift();
-    if (next) return this.startTurn(session, next.text, true);
+    if (next) return this.startTurn(session, next.text, true, next.mode);
     session.status = error ? "failed" : "done";
     session.unread = true;
     session.lastActivityAt = Date.now();

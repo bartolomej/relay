@@ -141,7 +141,7 @@ export class PanelHost implements vscode.Disposable {
           id = created.id;
           this.select(id);
         }
-        await this.api.sendMessage(id, m.text, m.options, m.delivery);
+        await this.api.sendMessage(id, m.text, m.options, m.delivery, m.mode);
         return;
       }
       case "removeQueued":
@@ -152,7 +152,7 @@ export class PanelHost implements vscode.Disposable {
         const item = session && session.queued.find((q) => q.id === m.queuedId);
         if (!item) return;
         await this.api.removeQueued(m.sessionId, m.queuedId);
-        await this.api.sendMessage(m.sessionId, item.text, undefined, "interrupt");
+        await this.api.sendMessage(m.sessionId, item.text, undefined, "interrupt", item.mode);
         return;
       }
       case "fork": {

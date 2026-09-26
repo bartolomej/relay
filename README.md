@@ -12,6 +12,8 @@ Relay drives the `claude` and `codex` CLIs you already have installed, so your l
 
 Pick the provider, model and effort for each message from the composer. The model list comes live from each CLI (Claude Code's `/model` catalogue and Codex's `model/list`), so new models and effort levels appear as soon as your CLI knows about them. Nothing is hardcoded. Hover a model to see its description and exact id.
 
+Switch the mode dropdown next to effort to **Plan** to have the agent read the code, outline its approach and ask numbered questions (with its recommended option for each) before writing any code. The instruction is added to your message behind the scenes; the chat shows what you typed with a Plan tag. It goes back to Normal after each send.
+
 ### Sessions sorted by what needs you
 
 ![The sidebar: usage at the top, then sessions grouped by state](img/sidebar%20ui.png)
@@ -103,6 +105,7 @@ This builds `relay.vsix` and installs it into VS Code. Reload any open windows, 
 |---|---|---|
 | `relay.notifications` | `all` | `all`: VS Code notification plus a macOS one when VS Code isn't focused. `inApp`: VS Code only. `off`: badge only. |
 | `relay.keepAwake` | `true` | Keep the Mac awake while an agent works. |
+| `relay.planPrompt` | *(see Settings UI)* | Instruction added to the end of a message sent in Plan mode. |
 | `relay.titleModel` | `gpt-5.6-luna` | Codex model that writes session titles. Without Codex, the title is the message's first line. |
 | `relay.claudePath` | | Path to `claude`, if Relay can't find it. |
 | `relay.codexPath` | | Path to `codex`, if Relay can't find it. |

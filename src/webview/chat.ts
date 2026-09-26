@@ -1,4 +1,4 @@
-import { isActive, minutesLabel, type Message, type Session, type ToolEvent } from "../api/types";
+import { isActive, minutesLabel, type Message, type MessageMode, type Session, type ToolEvent } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons } from "./icons";
 import { ago, elapsed, esc, level, tokens } from "./util";
@@ -37,7 +37,7 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
   if (m.role === "user") {
     const cls = pinned ? `msg-pinned ${local.expandedPin === m.id ? "expanded" : ""}` : "";
     const toggle = pinned ? ` data-action="togglePin" data-mid="${esc(m.id)}"` : "";
-    return `<div class="msg msg-user ${cls}" data-mid="${esc(m.id)}"><div class="bubble"${toggle}>${esc(m.text)}</div></div>`;
+    return `<div class="msg msg-user ${cls}" data-mid="${esc(m.id)}"><div class="bubble"${toggle}>${modeTag(m.mode)}${esc(m.text)}</div></div>`;
   }
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map(tool).join("")}</div>` : "";
   const caret = m.streaming ? `<span class="caret"></span>` : "";
@@ -49,6 +49,10 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
          <button class="icon-btn" data-action="copy" data-mid="${esc(m.id)}" title="Copy" aria-label="Copy message">${icons.copy}</button>
        </div>`;
   return `<div class="msg msg-assistant" data-mid="${esc(m.id)}">${toolbar}${tools}${text}</div>`;
+}
+
+function modeTag(mode: MessageMode | undefined): string {
+  return mode === "plan" ? `<span class="mode-tag" title="Sent in plan mode: the agent was asked to ask questions before writing code">Plan</span>` : "";
 }
 
 function approval(s: Session): string {
@@ -161,7 +165,7 @@ function queued(s: Session): string {
     ${s.queued
       .map(
         (q) => `<div class="queued-item">
-          <span class="ellipsis grow" title="${esc(q.text)}">${esc(q.text)}</span>
+          <span class="ellipsis grow" title="${esc(q.text)}">${modeTag(q.mode)}${esc(q.text)}</span>
           <button class="icon-btn sm" data-action="sendQueuedNow" data-id="${esc(s.id)}" data-qid="${esc(q.id)}" title="Send now (interrupts)" aria-label="Send now">${icons.send}</button>
           <button class="icon-btn sm" data-action="removeQueued" data-id="${esc(s.id)}" data-qid="${esc(q.id)}" title="Remove" aria-label="Remove from queue">${icons.cross}</button>
         </div>`,

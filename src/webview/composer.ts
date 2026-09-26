@@ -1,4 +1,4 @@
-import { isActive, type Delivery, type Effort, type ModelInfo, type ProviderId } from "../api/types";
+import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons } from "./icons";
 import { composerOptions, local, post, selected } from "./state";
@@ -44,13 +44,17 @@ export function refreshChips(state: UiState): void {
       ${efforts.map((e) => `<option value="${esc(e)}" ${e === opts.effort ? "selected" : ""}>${esc(e)}</option>`).join("")}
     </select>`
     : "";
+  const modeSel = `<select class="chip ${local.mode === "plan" ? "chip-on" : ""}" id="chip-mode" aria-label="Mode" title="Plan: the agent asks questions before writing code">
+      <option value="normal" ${local.mode === "normal" ? "selected" : ""}>Normal</option>
+      <option value="plan" ${local.mode === "plan" ? "selected" : ""}>Plan</option>
+    </select>`;
 
   // While the session works the button stops it; ↵ still queues a message.
   const working = selected(state);
   const action = working && isActive(working)
     ? `<button class="send stop" id="send" title="Stop (Esc)" aria-label="Stop the agent">${icons.stop}</button>`
     : `<button class="send" id="send" title="Send (↵)" aria-label="Send">${icons.send}</button>`;
-  el.innerHTML = `${providerSel}${modelSel}${effortSel}<span class="grow"></span>
+  el.innerHTML = `${providerSel}${modelSel}${effortSel}${modeSel}<span class="grow"></span>
     <button class="icon-btn" title="Attach" aria-label="Attach file">${icons.attach}</button>
     ${action}`;
 
@@ -70,6 +74,10 @@ export function refreshChips(state: UiState): void {
     refreshChips(state);
   });
   onChange("chip-effort", (v) => (opts.effort = v as Effort));
+  onChange("chip-mode", (v) => {
+    local.mode = v as MessageMode;
+    refreshChips(state);
+  });
   const send = document.getElementById("send");
   if (send) send.addEventListener("click", () => (working && isActive(working) ? stop(working.id) : submit(state)));
 }
@@ -93,11 +101,15 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   const text = input.value.trim();
   if (!text) return;
   const worktree = !state.selectedSessionId && state.worktrees && local.worktree;
-  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree });
+  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, mode: local.mode });
   input.value = "";
   autosize(input);
   local.composerFor = undefined;
   if (!state.selectedSessionId) local.worktree = false;
+  if (local.mode !== "normal") {
+    local.mode = "normal";
+    refreshChips(state);
+  }
 }
 
 /** Fits the box to its text, up to the CSS max-height (10 lines); past that it scrolls. */

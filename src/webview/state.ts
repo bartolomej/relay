@@ -1,4 +1,4 @@
-import type { Effort, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
+import type { Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
 import type { FromWebview, UiState } from "../panel/protocol";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void };
@@ -19,6 +19,8 @@ export const local = {
   composerFor: undefined as string | undefined,
   /** The next new session works in its own git worktree. Off until toggled; resets once used. */
   worktree: false,
+  /** How the next message is sent; back to normal after each send. */
+  mode: "normal" as MessageMode,
 };
 
 export function selected(state: UiState): Session | undefined {
