@@ -2,7 +2,7 @@ import * as os from "os";
 import * as path from "path";
 import type * as Sdk from "@anthropic-ai/claude-agent-sdk";
 import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import type { Effort, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
+import { capDiff, type Effort, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type ToolEvent, type UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 
@@ -453,11 +453,31 @@ function approvalFor(name: string, input: Record<string, unknown>, cwd: string):
     case "Edit":
     case "MultiEdit":
     case "Write":
-    case "NotebookEdit":
-      return { kind: "edit", summary: `wants to ${name === "Write" ? "write" : "edit"} a file`, detail: rel(cwd, input.file_path || input.notebook_path) };
+    case "NotebookEdit": {
+      const file = rel(cwd, input.file_path || input.notebook_path);
+      const diff = editDiff(name, input);
+      return { kind: "edit", summary: `wants to ${name === "Write" ? "write" : "edit"} a file`, detail: file, diff: diff ? capDiff(`${file}\n${diff}`) : undefined };
+    }
     default:
       return { kind: "other", summary: `wants to use ${name}`, detail: str(input, 400) };
   }
+}
+
+/** The replaced text as "-" lines and its replacement as "+" lines; a written file is all "+". */
+function editDiff(name: string, input: Record<string, unknown>): string {
+  const lines = (text: unknown, mark: string) =>
+    typeof text === "string" && text
+      ? text
+          .replace(/\n$/, "")
+          .split("\n")
+          .map((l) => mark + l)
+      : [];
+  if (name === "Write") return lines(input.content, "+").join("\n");
+  const edits = name === "MultiEdit" && Array.isArray(input.edits) ? (input.edits as Array<Record<string, unknown>>) : [input];
+  return edits
+    .map((e) => ["@@", ...lines(e.old_string, "-"), ...lines(e.new_string, "+")].join("\n"))
+    .filter((hunk) => hunk !== "@@")
+    .join("\n");
 }
 
 function resultError(m: Sdk.SDKResultMessage): string {

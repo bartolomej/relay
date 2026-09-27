@@ -41,6 +41,17 @@ export interface PendingApproval {
   kind: "bash" | "edit" | "other";
   summary: string;
   detail: string;
+  /** For file changes: a unified diff, each file under a line with its path. */
+  diff?: string;
+}
+
+const MAX_DIFF_LINES = 400;
+
+/** Caps a diff shown on an approval card, noting how much was left out. */
+export function capDiff(diff: string): string {
+  const lines = diff.replace(/\n$/, "").split("\n");
+  if (lines.length <= MAX_DIFF_LINES) return lines.join("\n");
+  return `${lines.slice(0, MAX_DIFF_LINES).join("\n")}\n… ${lines.length - MAX_DIFF_LINES} more lines`;
 }
 
 /** A multiple-choice question from the agent; the user picks options or types an answer. */

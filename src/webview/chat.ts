@@ -59,11 +59,21 @@ function modeTag(mode: MessageMode | undefined): string {
   return "";
 }
 
+/** Each line coloured by its mark; a line without one names the file below it. */
+function diffBlock(diff: string): string {
+  const lines = diff.split("\n").map((line) => {
+    const cls = /^(\+\+\+|---) /.test(line) ? "d-file" : line[0] === "+" ? "d-add" : line[0] === "-" ? "d-del" : line[0] === "@" ? "d-hunk" : line[0] === " " || line[0] === "…" ? "" : "d-file";
+    return `<span class="${cls}">${esc(line) || " "}</span>`;
+  });
+  return `<pre class="approval-diff mono">${lines.join("")}</pre>`;
+}
+
 function approval(s: Session): string {
   if (!s.pendingApproval) return "";
   return `<div class="approval">
     <div class="approval-title">${icons.clock}<span>${esc(s.pendingApproval.summary)}</span></div>
     <div class="approval-cmd mono">${esc(s.pendingApproval.detail)}</div>
+    ${s.pendingApproval.diff ? diffBlock(s.pendingApproval.diff) : ""}
     <div class="approval-actions">
       <button class="btn btn-primary" data-action="approve" data-id="${esc(s.id)}" data-decision="allow">Allow</button>
       <button class="btn" data-action="approve" data-id="${esc(s.id)}" data-decision="deny">Deny</button>

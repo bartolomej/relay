@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import * as path from "path";
 import * as readline from "readline";
-import type { ApprovalDecision, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
+import { capDiff, type ApprovalDecision, type ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 
@@ -171,7 +171,7 @@ interface ActiveTurn {
   turnId?: string;
   wroteText: boolean;
   /** File changes by item id, to describe them when Codex asks to apply them. */
-  fileChanges: Map<string, string[]>;
+  fileChanges: Map<string, { files: string[]; diff: string }>;
   error?: string;
   finish: (turn: Turn) => void;
 }
@@ -368,7 +368,7 @@ export class CodexAdapter implements ProviderAdapter {
           turn.wroteText = false;
         }
         if (item.type === "fileChange" && "changes" in item) {
-          turn.fileChanges.set(item.id, item.changes.map((c) => rel(turn.cwd, c.path)));
+          turn.fileChanges.set(item.id, { files: item.changes.map((c) => rel(turn.cwd, c.path)), diff: changeDiff(item.changes, turn.cwd) });
         }
         break;
       }
@@ -400,11 +400,12 @@ export class CodexAdapter implements ProviderAdapter {
     if (method === "item/fileChange/requestApproval") {
       const p = params as { itemId: string; reason?: string | null; grantRoot?: string | null };
       if (!turn) return { decision: "decline" };
-      const files = turn.fileChanges.get(p.itemId) || [];
+      const change = turn.fileChanges.get(p.itemId);
       const request: PendingApproval = {
         kind: "edit",
         summary: p.reason || (p.grantRoot ? `wants to write outside the workspace` : "wants to change files"),
-        detail: p.grantRoot || files.join(", ") || "files",
+        detail: p.grantRoot || (change && change.files.join(", ")) || "files",
+        diff: change && change.diff ? change.diff : undefined,
       };
       const answer = await turn.sink.approval(request);
       return { decision: toDecision(answer) };
@@ -487,6 +488,23 @@ function toUsage(r: RateLimitsResponse, now: number): ProviderUsage {
 function rel(cwd: string, file: string): string {
   const r = path.relative(cwd, file);
   return r && !r.startsWith("..") && !path.isAbsolute(r) ? r : file;
+}
+
+/** Every file of a change under its path; a created or deleted file comes as its plain content. */
+function changeDiff(changes: Array<{ path: string; kind: { type: string }; diff: string }>, cwd: string): string {
+  const parts = changes.map((c) => {
+    const kind = c.kind.type;
+    const body =
+      kind === "add" || kind === "delete"
+        ? c.diff
+            .replace(/\n$/, "")
+            .split("\n")
+            .map((line) => (kind === "add" ? "+" : "-") + line)
+            .join("\n")
+        : c.diff.replace(/\n$/, "");
+    return `${rel(cwd, c.path)}${kind === "add" ? " (new)" : kind === "delete" ? " (deleted)" : ""}\n${body}`;
+  });
+  return capDiff(parts.join("\n"));
 }
 
 /** "+"/"-" lines of a unified diff, without the file headers. */
