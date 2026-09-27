@@ -53,12 +53,14 @@ function render(): void {
   const html = renderChat(state);
   if (!chat || html === chatHtml) return;
   const messages = document.getElementById("messages");
-  // Catch a scroll the user made since the last scroll event, before the element is replaced.
+  // Catch a scroll the user made since the last scroll event, before the content changes.
   if (messages) trackScroll(messages);
   if (state.selectedSessionId !== followedSessionId) {
     followedSessionId = state.selectedSessionId;
     followOutput = true;
   }
+  const active = document.activeElement as HTMLInputElement | null;
+  const typing = active && active.classList.contains("question-other") ? { qid: active.dataset.qid, at: active.selectionStart } : undefined;
 
   // Patched in place rather than replaced: a new scroll box would cut off the
   // momentum of a scroll that is still going.
@@ -66,7 +68,7 @@ function render(): void {
   next.innerHTML = html;
   morphChildren(chat, next.content);
   chatHtml = html;
-  restoreTyped();
+  restoreTyped(typing);
 
   const box = document.getElementById("messages");
   if (box) {
@@ -76,12 +78,17 @@ function render(): void {
   updatePinned();
 }
 
-/** Puts typed answers into answer boxes the redraw created; boxes that stayed keep their cursor. */
-function restoreTyped(): void {
+/** Puts typed answers back into answer boxes a redraw recreated, and the cursor where it was. */
+function restoreTyped(typing: { qid?: string; at: number | null } | undefined): void {
   document.querySelectorAll<HTMLInputElement>("#chat .question-other").forEach((input) => {
     const typed = local.typed[input.dataset.id || ""];
     const value = (typed && typed[input.dataset.qid || ""]) || "";
     if (input.value !== value) input.value = value;
+    if (typing && typing.qid === input.dataset.qid && document.activeElement !== input) {
+      input.focus();
+      const at = typing.at === null ? input.value.length : typing.at;
+      input.setSelectionRange(at, at);
+    }
   });
 }
 
@@ -300,7 +307,7 @@ app.addEventListener("keydown", (e) => {
   answer(input.dataset.id || "", false);
 });
 
-// #messages is replaced on every render, so listen in the capture phase on the stable root.
+// scroll does not bubble, so listen in the capture phase on the stable root.
 app.addEventListener(
   "scroll",
   (e) => {
