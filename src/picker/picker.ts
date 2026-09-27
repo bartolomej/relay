@@ -207,16 +207,20 @@ function submit(): void {
   }
   ui.add.disabled = true;
   ui.status.textContent = "";
-  relayNote(
-    JSON.stringify({
-      type: "note",
-      url: location.href,
-      selector: selectorFor(picked),
-      text: visibleText(picked),
-      comment,
-      sessionId: ui.target.disabled ? "" : ui.target.value,
-    }),
-  );
+  const r = picked.getBoundingClientRect();
+  const note = JSON.stringify({
+    type: "note",
+    url: location.href,
+    selector: selectorFor(picked),
+    text: visibleText(picked),
+    comment,
+    sessionId: ui.target.disabled ? "" : ui.target.value,
+    rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+    viewport: `${innerWidth}×${innerHeight}`,
+  });
+  // Relay screenshots the element next, so our UI steps aside and the page repaints first.
+  for (const e of [ui.popup, ui.box, ui.fab]) show(e, false);
+  requestAnimationFrame(() => requestAnimationFrame(() => relayNote(note)));
 }
 
 function flash(message: string): void {
@@ -279,7 +283,10 @@ export function showTargets(data: { targets: NoteTarget[]; selected?: string }):
 }
 
 export function added(result: { ok: boolean; message: string }): void {
+  show(ui.fab, true);
   if (!result.ok) {
+    show(ui.popup, true);
+    place();
     ui.status.textContent = result.message;
     ui.add.disabled = false;
     return;

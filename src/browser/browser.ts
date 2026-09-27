@@ -5,6 +5,7 @@ import * as path from "path";
 import type { Readable, Writable } from "stream";
 import { findExecutable } from "../backend/binaries";
 import { Cdp } from "./cdp";
+import { PageLog } from "./pageLog";
 
 /**
  * The picker runs in an isolated world, like an extension's content script:
@@ -27,7 +28,25 @@ export interface PageNote {
   comment: string;
   /** Chat to add the note to; empty for a new one. */
   sessionId: string;
+  /** The window's inner size, e.g. "1280×800". */
+  viewport?: string;
+  /** Where the picture of the element and its surroundings was saved. */
+  screenshot?: string;
+  /** Console errors and failed requests since the page last loaded. */
+  errors?: string[];
+  failedRequests?: string[];
 }
+
+/** The picked element's box in the viewport, in CSS pixels. */
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Room around the element in its screenshot, so the agent sees where it sits. */
+const SHOT_MARGIN = 24;
 
 export interface BrowserHost {
   /** The script injected into every page (dist/picker.js). */
@@ -36,6 +55,8 @@ export interface BrowserHost {
   targets(): Promise<{ targets: NoteTarget[]; selected?: string }>;
   /** Puts the note in front of the user; returns where it went, for the popup to confirm. */
   addNote(note: PageNote): Promise<string>;
+  /** Keeps a screenshot for a note; returns its path, or undefined when there's nowhere to keep it. */
+  saveScreenshot(png: Buffer): Promise<string | undefined>;
 }
 
 /**
@@ -49,6 +70,8 @@ export class Browser {
   private picker = "";
   /** Where the first page goes once the picker is set up in it. */
   private startUrl: string | undefined;
+  /** What went wrong in each tab, by its CDP session. */
+  private logs = new Map<string, PageLog>();
 
   constructor(
     private readonly profileDir: string,
@@ -113,14 +136,21 @@ export class Browser {
       } catch {
         // The tab closed while we were setting it up.
       }
+    } else if (method === "Target.detachedFromTarget") {
+      this.logs.delete(params.sessionId as string);
     } else if (method === "Runtime.bindingCalled" && params.name === BINDING && sessionId) {
       await this.onBinding(cdp, sessionId, params.executionContextId as number, params.payload as string);
+    } else if (sessionId) {
+      const log = this.logs.get(sessionId);
+      if (log) log.onEvent(method, params);
     }
   }
 
   private async preparePage(cdp: Cdp, session: string): Promise<void> {
+    this.logs.set(session, new PageLog());
     await cdp.send("Page.enable", {}, session);
     await cdp.send("Runtime.enable", {}, session);
+    await cdp.send("Network.enable", {}, session);
     await cdp.send("Runtime.addBinding", { name: BINDING, executionContextName: WORLD }, session);
     await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: this.picker, worldName: WORLD }, session);
     await cdp.send("Runtime.runIfWaitingForDebugger", {}, session);
@@ -143,7 +173,16 @@ export class Browser {
       await reply("showTargets", await this.host.targets());
     } else if (m.type === "note") {
       const note = readNote(m);
-      if (!note) return;
+      if (!note) {
+        await reply("added", { ok: false, message: "Relay couldn't read this note." });
+        return;
+      }
+      const log = this.logs.get(session);
+      if (log && log.errors.length) note.errors = log.errors.slice();
+      if (log && log.failedRequests.length) note.failedRequests = log.failedRequests.slice();
+      const rect = readRect(m.rect);
+      const png = rect ? await shot(cdp, session, rect).catch(() => undefined) : undefined;
+      if (png) note.screenshot = await this.host.saveScreenshot(png).catch(() => undefined);
       try {
         await reply("added", { ok: true, message: `Added to ${await this.host.addNote(note)}` });
       } catch (e) {
@@ -153,6 +192,31 @@ export class Browser {
   }
 }
 
+/**
+ * The element with a margin around it, cut to the part in view (what the user
+ * was looking at). The picker has hidden its own UI before asking.
+ */
+async function shot(cdp: Cdp, session: string, rect: Rect): Promise<Buffer | undefined> {
+  const metrics = await cdp.send<{ cssLayoutViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number } }>("Page.getLayoutMetrics", {}, session);
+  const view = metrics.cssLayoutViewport;
+  const left = Math.max(0, rect.x - SHOT_MARGIN);
+  const top = Math.max(0, rect.y - SHOT_MARGIN);
+  const right = Math.min(view.clientWidth, rect.x + rect.width + SHOT_MARGIN);
+  const bottom = Math.min(view.clientHeight, rect.y + rect.height + SHOT_MARGIN);
+  if (right - left < 4 || bottom - top < 4) return undefined;
+  // The clip is in page coordinates, so the scroll offset is added.
+  const clip = { x: view.pageX + left, y: view.pageY + top, width: right - left, height: bottom - top, scale: 1 };
+  const res = await cdp.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip }, session);
+  return Buffer.from(res.data, "base64");
+}
+
+function readRect(v: unknown): Rect | undefined {
+  const r = v as Partial<Rect> | undefined;
+  if (!r) return undefined;
+  const ok = [r.x, r.y, r.width, r.height].every((n) => typeof n === "number" && isFinite(n));
+  return ok ? (r as Rect) : undefined;
+}
+
 function readNote(m: Record<string, unknown>): PageNote | undefined {
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
   const url = str(m.url, 2000);
@@ -160,8 +224,9 @@ function readNote(m: Record<string, unknown>): PageNote | undefined {
   const text = str(m.text, 200);
   const comment = str(m.comment, 10000);
   const sessionId = str(m.sessionId, 200);
+  const viewport = str(m.viewport, 40);
   if (url === undefined || selector === undefined || text === undefined || !comment || sessionId === undefined) return undefined;
-  return { url, selector, text, comment, sessionId };
+  return { url, selector, text, comment, sessionId, viewport };
 }
 
 /** Chrome, or another Chromium browser, in its usual install location. */

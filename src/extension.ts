@@ -10,6 +10,7 @@ import { KeepAwake } from "./backend/keepAwake";
 import { RealSessionsApi } from "./backend/RealSessionsApi";
 import { Scheduler } from "./backend/scheduler";
 import { Browser, findChrome, type PageNote } from "./browser/browser";
+import { saveShot } from "./browser/shots";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
 import { keepAwakeEnabled, workspaceCwd } from "./panel/PanelHost";
@@ -142,6 +143,8 @@ function registerBrowser(context: vscode.ExtensionContext, api: SessionsApi, sid
       if (!WidePanel.insertText(id, formatNote(note))) await sidebar.insertText(id, formatNote(note));
       return session ? `“${session.title}”` : "a new chat";
     },
+    // Next to the sessions, where the agents can open them.
+    saveScreenshot: (png) => saveShot(path.join(workspaceCwd(), ".relay", "shots"), png),
   });
   context.subscriptions.push(
     { dispose: () => browser.dispose() },
@@ -177,10 +180,17 @@ async function askUrl(context: vscode.ExtensionContext): Promise<string | undefi
   return url;
 }
 
-/** What lands in the message box; the element's text helps the agent find it in the source. */
+/**
+ * What lands in the message box. The element's text helps the agent find it in
+ * the source; the screenshot, errors and failed requests show it what the user saw.
+ */
 function formatNote(note: PageNote): string {
   const lines = [`Page: ${note.url}`, `Element: ${note.selector}`];
   if (note.text) lines.push(`Element text: "${note.text}"`);
+  if (note.viewport) lines.push(`Viewport: ${note.viewport}`);
+  if (note.screenshot) lines.push(`Screenshot of the element: ${note.screenshot}`);
+  if (note.errors) lines.push("Console errors on the page:", ...note.errors.map((e) => `- ${e}`));
+  if (note.failedRequests) lines.push("Failed requests:", ...note.failedRequests.map((r) => `- ${r}`));
   lines.push(`Note: ${note.comment}`);
   return lines.join("\n");
 }

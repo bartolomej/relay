@@ -92,7 +92,13 @@ Nothing fires for the session you have open, or between queued turns.
 
 ### Notes from the browser
 
-Click the globe next to **New** in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Open in Browser**), and enter your app's address, e.g. `localhost:3000`. Relay opens its own Chrome window, with a profile of its own for each project. On any page, click the ✎ button in the bottom-right corner (or press ⌥⇧C), click an element, and write what should change. The popup's dropdown picks the chat, defaulting to the one open in Relay. The note is added to that chat's message box with the page address, a CSS selector for the element, and the element's text, so you can review it or collect several before sending. While you pick, the app doesn't see your clicks. Pages can't see or send notes themselves, because the picker runs apart from their scripts.
+Click the globe next to **New** in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Open in Browser**), and enter your app's address, e.g. `localhost:3000`. Relay opens its own Chrome window, with a profile of its own for each project. On any page, click the ✎ button in the bottom-right corner (or press ⌥⇧C), click an element, and write what should change. The popup's dropdown picks the chat, defaulting to the one open in Relay. The note is added to that chat's message box with the page address, a CSS selector for the element, the element's text and the window size, so you can review it or collect several before sending. It also carries:
+
+- **a screenshot** of the element and a little around it, saved in `.relay/shots/` (the newest 50 are kept), so the agent sees what you saw,
+- **console errors** and uncaught exceptions on the page since it last loaded,
+- **failed requests** since then: 4xx and 5xx responses, and requests that didn't complete.
+
+The last ten errors and failed requests are included; the lines are only added when there are any. While you pick, the app doesn't see your clicks. Pages can't see or send notes themselves, because the picker runs apart from their scripts.
 
 ### Scheduled tasks
 
