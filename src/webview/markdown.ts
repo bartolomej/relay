@@ -1,5 +1,36 @@
 import markdownit, { type StateCore, type Token } from "markdown-it";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import c from "highlight.js/lib/languages/c";
+import cpp from "highlight.js/lib/languages/cpp";
+import csharp from "highlight.js/lib/languages/csharp";
+import css from "highlight.js/lib/languages/css";
+import diff from "highlight.js/lib/languages/diff";
+import dockerfile from "highlight.js/lib/languages/dockerfile";
+import go from "highlight.js/lib/languages/go";
+import ini from "highlight.js/lib/languages/ini";
+import java from "highlight.js/lib/languages/java";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import kotlin from "highlight.js/lib/languages/kotlin";
+import makefile from "highlight.js/lib/languages/makefile";
+import markdown from "highlight.js/lib/languages/markdown";
+import php from "highlight.js/lib/languages/php";
+import python from "highlight.js/lib/languages/python";
+import ruby from "highlight.js/lib/languages/ruby";
+import rust from "highlight.js/lib/languages/rust";
+import scss from "highlight.js/lib/languages/scss";
+import shell from "highlight.js/lib/languages/shell";
+import sql from "highlight.js/lib/languages/sql";
+import swift from "highlight.js/lib/languages/swift";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import yaml from "highlight.js/lib/languages/yaml";
 import { esc } from "./util";
+
+// The languages agents write most; each brings its aliases (ts, sh, html, yml, …).
+const languages = { bash, c, cpp, csharp, css, diff, dockerfile, go, ini, java, javascript, json, kotlin, makefile, markdown, php, python, ruby, rust, scss, shell, sql, swift, typescript, xml, yaml };
+for (const [name, lang] of Object.entries(languages)) hljs.registerLanguage(name, lang);
 
 // html: false escapes any raw HTML in model output, and markdown-it refuses
 // javascript:/vbscript: links on its own, so the result is safe to inject.
@@ -31,13 +62,33 @@ function fileLinkAttrs(ref: { path: string; line?: string }): Array<[string, str
   return attrs;
 }
 
+/**
+ * The chat is rendered again on every streamed token, so each block is
+ * highlighted once and kept. Only a named language is highlighted; guessing is
+ * slow and often wrong.
+ */
+const highlighted = new Map<string, string>();
+
+function highlight(code: string, lang: string): string {
+  if (!lang || !hljs.getLanguage(lang)) return esc(code);
+  const key = `${lang}\0${code}`;
+  let html = highlighted.get(key);
+  if (html === undefined) {
+    // highlight.js escapes the code itself.
+    html = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+    if (highlighted.size > 200) highlighted.clear();
+    highlighted.set(key, html);
+  }
+  return html;
+}
+
 /** Fenced code gets a header with its language and a copy button. */
 md.renderer.rules.fence = (tokens, idx) => {
   const token = tokens[idx];
   const lang = token.info.trim().split(/\s+/)[0];
   return `<div class="code-block">
     <div class="code-head"><span>${esc(lang || "text")}</span><button class="code-copy" data-action="copyCode" title="Copy code">Copy</button></div>
-    <pre><code>${esc(token.content)}</code></pre>
+    <pre><code>${highlight(token.content, lang.toLowerCase())}</code></pre>
   </div>`;
 };
 

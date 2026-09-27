@@ -56,7 +56,7 @@ Queued messages wait above the composer, each with **send now** and **remove**. 
 
 ### Readable replies
 
-- Replies render as markdown: headings, lists, tables, and code blocks with a **Copy** button.
+- Replies render as markdown: headings, lists, tables, and code blocks with a **Copy** button. Code blocks that name their language are syntax-highlighted in your theme's colours (TypeScript, JavaScript, Python, Go, Rust, shell, JSON, YAML, HTML, CSS, SQL, diffs and a dozen more).
 - **File names are links.** Clicking a path in a reply or a tool row opens the file in the editor, at the line when one is given (`src/app.ts:42`). Only files that actually exist are linked.
 - Each tool call shows as a compact row: files read, commands run with their exit codes, files edited with `+added −removed` line counts.
 - Your latest message stays pinned at the top of the chat while the reply scrolls under it. Click it to expand a long one.
@@ -157,7 +157,6 @@ This builds `relay.vsix` and installs it into VS Code. Reload any open windows, 
 
 ## Known limitations
 
-- Code blocks aren't syntax-highlighted.
 - Clicking the macOS notification opens Script Editor, not VS Code. Use the in-app **Open** button.
 - Sessions you start in the terminal with `claude` or `codex` aren't listed; only sessions started from Relay are.
 

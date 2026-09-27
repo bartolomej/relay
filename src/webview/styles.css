@@ -294,6 +294,25 @@ body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
 .code-copy { padding: 1px 6px; border-radius: 3px; font-size: 11px; color: var(--fg-muted); }
 .code-copy:hover { background: var(--bg-hover); color: var(--fg); }
 .md pre { margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+
+/* Syntax colours from the theme's debug-console palette, the closest VS Code
+   exposes to a webview; the fallbacks are Dark+ and Light+. */
+.hljs-keyword, .hljs-selector-tag, .hljs-meta .hljs-keyword { color: var(--vscode-debugTokenExpression-name, #c586c0); }
+.hljs-string, .hljs-regexp, .hljs-template-string, .hljs-meta .hljs-string, .hljs-symbol { color: var(--vscode-debugTokenExpression-string, #ce9178); }
+.hljs-number { color: var(--vscode-debugTokenExpression-number, #b5cea8); }
+.hljs-literal, .hljs-built_in, .hljs-type, .hljs-name { color: var(--vscode-debugTokenExpression-boolean, #569cd6); }
+.hljs-title.function_, .hljs-title.class_, .hljs-title, .hljs-section { color: var(--vscode-symbolIcon-classForeground, #ee9d28); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-property, .hljs-params, .hljs-selector-class, .hljs-selector-id { color: var(--vscode-symbolIcon-variableForeground, #75beff); }
+.hljs-comment, .hljs-quote { color: var(--fg-muted); font-style: italic; }
+.hljs-meta { color: var(--fg-muted); }
+.hljs-addition { color: var(--done); }
+.hljs-deletion { color: var(--fail); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+body.vscode-light .hljs-keyword, body.vscode-light .hljs-selector-tag { color: var(--vscode-debugTokenExpression-name, #af00db); }
+body.vscode-light .hljs-string, body.vscode-light .hljs-regexp { color: var(--vscode-debugTokenExpression-string, #a31515); }
+body.vscode-light .hljs-number { color: var(--vscode-debugTokenExpression-number, #098658); }
+body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-light .hljs-type, body.vscode-light .hljs-name { color: var(--vscode-debugTokenExpression-boolean, #0000ff); }
 .md pre code { padding: 0; background: none; font-size: 12px; line-height: 1.5; color: var(--fg-strong); }
 .msg-tools {
   position: absolute; right: 0; top: -22px; display: flex; gap: 2px; padding: 2px; border-radius: 5px;
