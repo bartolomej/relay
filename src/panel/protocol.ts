@@ -57,7 +57,9 @@ export type FromWebview =
   | { type: "deleteTask"; taskId: string }
   /** Opens a new task drafted from the session's messages and options. */
   | { type: "scheduleSession"; sessionId: string }
-  | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; mode?: MessageMode }
+  /** `browser` lets a new session's agent drive Relay's browser from its first turn. */
+  | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; browser?: boolean; mode?: MessageMode }
+  | { type: "toggleBrowserAccess"; sessionId: string }
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }
   | { type: "fork"; sessionId: string; messageId?: string }

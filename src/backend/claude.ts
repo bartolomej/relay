@@ -5,6 +5,7 @@ import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-to
 import { capDiff, type Effort, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type ToolEvent, type UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
+import { BROWSER_MCP, BROWSER_PROMPT, browserMcp } from "./browserMcp";
 
 // The SDK is ESM-only; the extension bundle is CommonJS, so it is loaded on first use.
 let sdkModule: Promise<typeof Sdk> | undefined;
@@ -162,6 +163,10 @@ export class ClaudeAdapter implements ProviderAdapter {
       : target.providerSessionId
         ? { resume: target.providerSessionId }
         : {};
+    // Turning browser access on was the user's say-so, so its tools don't ask again.
+    const browser: Partial<Sdk.Options> = target.browserUrl
+      ? { mcpServers: { [BROWSER_MCP]: { type: "stdio", ...browserMcp(target.browserUrl) } }, allowedTools: [`mcp__${BROWSER_MCP}`] }
+      : {};
     const q = sdk.query({
       prompt: input(),
       options: {
@@ -169,7 +174,8 @@ export class ClaudeAdapter implements ProviderAdapter {
         model: target.options.model,
         ...(effort ? { effort } : {}),
         permissionMode: "auto",
-        systemPrompt: { type: "preset", preset: "claude_code" },
+        systemPrompt: { type: "preset", preset: "claude_code", ...(target.browserUrl ? { append: BROWSER_PROMPT } : {}) },
+        ...browser,
         includePartialMessages: true,
         pathToClaudeCodeExecutable: this.executable(),
         canUseTool: (name, toolInput, opts) => this.ask(sink, target.cwd, name, toolInput, opts.suggestions),

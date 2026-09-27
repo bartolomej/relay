@@ -4,6 +4,7 @@ import * as readline from "readline";
 import { capDiff, type ApprovalDecision, type ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
+import { BROWSER_MCP, browserMcp } from "./browserMcp";
 
 // -- the slice of the app-server protocol we use (see `codex app-server generate-ts`) --
 
@@ -186,6 +187,8 @@ export class CodexAdapter implements ProviderAdapter {
   private server: Promise<AppServer> | undefined;
   /** Threads the current process has started or resumed; others must be resumed first. */
   private loaded = new Set<string>();
+  /** The browser each loaded thread was given; MCP servers are set when a thread loads. */
+  private loadedBrowser = new Map<string, string | undefined>();
   /** Running turn per thread id. */
   private active = new Map<string, ActiveTurn>();
   private threadOf = new Map<string, string>();
@@ -241,7 +244,9 @@ export class CodexAdapter implements ProviderAdapter {
     const server = await this.connect();
     const model = this.models.find((m) => m.model === target.options.model);
     const effort = model && model.supportedReasoningEfforts.some((e) => e.reasoningEffort === target.options.effort) ? target.options.effort : undefined;
-    const settings = { model: target.options.model, cwd: target.cwd, ...(target.readOnly ? READ_ONLY : AUTO) };
+    const browser = target.browserUrl ? { config: { mcp_servers: { [BROWSER_MCP]: browserMcp(target.browserUrl) } } } : {};
+    const settings = { model: target.options.model, cwd: target.cwd, ...(target.readOnly ? READ_ONLY : AUTO), ...browser };
+    const current = target.providerSessionId;
 
     let threadId: string;
     if (target.forkOf) {
@@ -251,16 +256,19 @@ export class CodexAdapter implements ProviderAdapter {
         ...settings,
       });
       threadId = res.thread.id;
-    } else if (target.providerSessionId && this.loaded.has(target.providerSessionId)) {
-      threadId = target.providerSessionId;
-    } else if (target.providerSessionId) {
-      const res = await server.request<{ thread: { id: string } }>("thread/resume", { threadId: target.providerSessionId, ...settings });
+    } else if (current && this.loaded.has(current) && this.loadedBrowser.get(current) === target.browserUrl) {
+      threadId = current;
+    } else if (current) {
+      // A loaded thread keeps the MCP servers it loaded with, so it's unloaded to take the new ones.
+      if (this.loaded.has(current)) await server.request("thread/unsubscribe", { threadId: current }).catch(() => undefined);
+      const res = await server.request<{ thread: { id: string } }>("thread/resume", { threadId: current, ...settings });
       threadId = res.thread.id;
     } else {
       const res = await server.request<{ thread: { id: string } }>("thread/start", settings);
       threadId = res.thread.id;
     }
     this.loaded.add(threadId);
+    this.loadedBrowser.set(threadId, target.browserUrl);
     this.threadOf.set(target.sessionId, threadId);
     sink.providerSessionId(threadId);
 
@@ -331,6 +339,7 @@ export class CodexAdapter implements ProviderAdapter {
       // Start a fresh process on next use; nothing it had loaded survives.
       this.server = undefined;
       this.loaded.clear();
+      this.loadedBrowser.clear();
     });
     await server.request("initialize", { clientInfo: { name: "relay", title: "Relay", version: "0.0.1" }, capabilities: null });
     server.notify("initialized");

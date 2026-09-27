@@ -28,6 +28,8 @@ export const local = {
   composerFor: undefined as string | undefined,
   /** The next new session works in its own git worktree. Off until toggled; resets once used. */
   worktree: false,
+  /** The next new session's agent may drive Relay's browser. Off until toggled; resets once used. */
+  browser: false,
   /** How the next message is sent. Plan goes back to normal after each send; ask stays until switched. */
   mode: "normal" as MessageMode,
   /** Options picked so far for a session's pending questions, by session id. */

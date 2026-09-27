@@ -220,9 +220,18 @@ function scheduleButton(state: UiState, s: Session): string {
   return `<button class="icon-btn" data-action="scheduleSession" data-id="${esc(s.id)}" title="${title}" aria-label="Schedule as a repeating task">${icons.calendar}</button>`;
 }
 
+/** On: the agent can drive Relay's browser, opened for it when a turn starts. */
+function browserToggle(s: Session | undefined): string {
+  const on = s ? !!s.browserAccess : local.browser;
+  const title = on
+    ? "The agent can drive Relay's browser: open pages, click, type, read the console and take screenshots. Click to turn it off."
+    : "Let the agent drive Relay's browser, the window with your logins. It opens when the agent starts working; if it's already open without agent access, it restarts once and reopens its tabs.";
+  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleBrowserAccess" data-id="${s ? esc(s.id) : ""}" title="${esc(title)}" aria-label="Let the agent use Relay's browser" aria-pressed="${on}">${icons.browserAgent}</button>`;
+}
+
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
-    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${keepAwakeToggle(state)}</div>`;
+    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${keepAwakeToggle(state)}</div>`;
   }
   const status =
     s.status === "running"
@@ -250,6 +259,7 @@ function head(state: UiState, s: Session | undefined): string {
     ${ctx}
     ${runClock(state, s)}
     ${worktreeToggle(state, s)}
+    ${browserToggle(s)}
     ${keepAwakeToggle(state)}
     ${secondOpinion(state, s)}
     ${scheduleButton(state, s)}

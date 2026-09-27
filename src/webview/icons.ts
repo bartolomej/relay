@@ -26,5 +26,6 @@ export const icons = {
   calendar: wrap('<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/>'),
   phone: wrap('<rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12h2"/>'),
   opinion: wrap('<path d="M2.5 3h11v7.5H8L5 13v-2.5H2.5z"/><path d="M5.5 6.8l1.7 1.7 3.3-3.3"/>'),
+  browserAgent: wrap('<rect x="1.5" y="2.5" width="13" height="10.5" rx="1.5"/><path d="M1.5 5.5h13M7 7.5l1.3 4.3.9-1.7 1.9 1.9.8-.8-1.9-1.9 1.7-.9z"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };

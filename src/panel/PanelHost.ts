@@ -223,6 +223,7 @@ export class PanelHost implements vscode.Disposable {
           const created = await this.api.createSession(m.options, workspaceCwd(), m.worktree);
           id = created.id;
           this.select(id);
+          if (m.browser) await this.api.setBrowserAccess(id, true);
         }
         await this.api.sendMessage(id, m.text, m.options, m.delivery, m.mode);
         return;
@@ -230,6 +231,11 @@ export class PanelHost implements vscode.Disposable {
       case "removeQueued":
         await this.api.removeQueued(m.sessionId, m.queuedId);
         return;
+      case "toggleBrowserAccess": {
+        const session = (await this.api.listSessions()).find((s) => s.id === m.sessionId);
+        if (session) await this.api.setBrowserAccess(session.id, !session.browserAccess);
+        return;
+      }
       case "sendQueuedNow": {
         const session = (await this.api.listSessions()).find((s) => s.id === m.sessionId);
         const item = session && session.queued.find((q) => q.id === m.queuedId);

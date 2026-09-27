@@ -44,6 +44,8 @@ export interface SessionsApi {
   /** Without answers the agent is told to ask in plain text instead. */
   answerQuestions(sessionId: string, answers: Answers | undefined): Promise<void>;
   renameSession(sessionId: string, title: string): Promise<void>;
+  /** Lets the agent drive Relay's browser from its next turn on, or stops it. */
+  setBrowserAccess(sessionId: string, on: boolean): Promise<void>;
   /** Max time a run may work before it's stopped; undefined removes the limit. */
   setRunLimit(sessionId: string, limitMs: number | undefined): Promise<void>;
 

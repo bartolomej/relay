@@ -118,6 +118,8 @@ export interface Session {
   transcriptPath: string;
   /** Work in a git worktree of its own: created on the first message, merged back on Complete. */
   useWorktree?: boolean;
+  /** The agent may drive Relay's browser; it's opened for the agent when a turn starts. */
+  browserAccess?: boolean;
   worktree?: Worktree;
   /** Started by this scheduled task. */
   scheduledTaskId?: string;

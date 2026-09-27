@@ -23,6 +23,8 @@ import { remoteStatus } from "./remote/status";
 const OLD_EXTENSION_ID = "gregorg.ai-sessions";
 
 let remote: RemoteAccess | undefined;
+/** Opens Relay's browser for an agent; set once the browser is registered. */
+let openBrowserForAgent: (() => Promise<string>) | undefined;
 
 function setting(key: string): string | undefined {
   const value = vscode.workspace.getConfiguration("relay").get<string>(key);
@@ -68,6 +70,7 @@ async function createApi(context: vscode.ExtensionContext): Promise<SessionsApi>
     [new ClaudeAdapter(() => setting("claudePath")), new CodexAdapter(() => setting("codexPath"))],
     titler,
     (mode) => (mode === "normal" ? "" : setting(mode === "plan" ? "planPrompt" : "askPrompt") || ""),
+    () => (openBrowserForAgent ? openBrowserForAgent() : Promise.reject(new Error("Relay's browser isn't ready yet."))),
   );
 }
 
@@ -146,6 +149,12 @@ function registerBrowser(context: vscode.ExtensionContext, api: SessionsApi, sid
     // Next to the sessions, where the agents can open them.
     saveScreenshot: (png) => saveShot(path.join(workspaceCwd(), ".relay", "shots"), png),
   });
+  // An agent with browser access gets the browser on the project's app, or a blank tab to navigate from.
+  openBrowserForAgent = () => {
+    const executable = findChrome(setting("chromePath"));
+    if (!executable) return Promise.reject(new Error("it needs Google Chrome. Install it, or set relay.chromePath to a Chromium browser."));
+    return browser.agentEndpoint(context.workspaceState.get<string>("relay.browserUrl", "about:blank"), executable);
+  };
   context.subscriptions.push(
     { dispose: () => browser.dispose() },
     vscode.commands.registerCommand("relay.openBrowser", async () => {

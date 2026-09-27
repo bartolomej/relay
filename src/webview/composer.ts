@@ -103,11 +103,15 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   const text = input.value.trim();
   if (!text) return;
   const worktree = !state.selectedSessionId && state.worktrees && local.worktree;
-  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, mode: local.mode });
+  const browser = !state.selectedSessionId && local.browser;
+  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
   input.value = "";
   autosize(input);
   local.composerFor = undefined;
-  if (!state.selectedSessionId) local.worktree = false;
+  if (!state.selectedSessionId) {
+    local.worktree = false;
+    local.browser = false;
+  }
   if (local.mode === "plan") {
     local.mode = "normal";
     refreshChips(state);

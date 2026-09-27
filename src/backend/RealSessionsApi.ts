@@ -71,6 +71,8 @@ export class RealSessionsApi implements SessionsApi {
     private readonly titler?: Titler,
     /** Added to the end of a message sent in plan or ask mode. */
     private readonly modePrompt: (mode: MessageMode) => string = () => "",
+    /** Opens Relay's browser for an agent if needed and returns its DevTools address. */
+    private readonly openBrowser?: () => Promise<string>,
   ) {
     for (const a of adapters) {
       this.adapters.set(a.id, a);
@@ -247,6 +249,13 @@ export class RealSessionsApi implements SessionsApi {
     this.emit();
   }
 
+  async setBrowserAccess(sessionId: string, on: boolean): Promise<void> {
+    const session = this.store.sessions.get(sessionId);
+    if (!session) return;
+    session.browserAccess = on || undefined;
+    this.emit();
+  }
+
   async setRunLimit(sessionId: string, limitMs: number | undefined): Promise<void> {
     const session = this.store.sessions.get(sessionId);
     if (!session) return;
@@ -407,6 +416,16 @@ export class RealSessionsApi implements SessionsApi {
       session.worktree = await createWorktree(session.cwd, session.id, session.title);
       this.emit();
     }
+    // Ask mode can't change anything, so it doesn't get a browser to click around in.
+    let browserUrl: string | undefined;
+    if (session.browserAccess && !readOnly && this.openBrowser) {
+      try {
+        browserUrl = await this.openBrowser();
+      } catch (err) {
+        this.note(session, `The agent works without Relay's browser this turn: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (!live()) return;
+    }
     const target: TurnTarget = {
       sessionId: session.id,
       cwd: workDir(session),
@@ -414,6 +433,7 @@ export class RealSessionsApi implements SessionsApi {
       providerSessionId: session.providerSessionId,
       forkOf: session.forkOf,
       readOnly,
+      browserUrl,
     };
     const result = await adapter.runTurn(target, text, sink);
     if (!live()) return;

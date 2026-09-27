@@ -315,6 +315,12 @@ app.addEventListener("click", (e) => {
       local.worktree = !local.worktree;
       render();
       break;
+    case "toggleBrowserAccess":
+      if (!id) {
+        local.browser = !local.browser;
+        render();
+      } else post({ type: "toggleBrowserAccess", sessionId: id });
+      break;
     case "setRunLimit":
       if (state.remote) askRunLimit(state, id);
       else post({ type: "setRunLimit", sessionId: id });

@@ -113,6 +113,16 @@ Click the calendar next to the globe in the editor tab, or in Relay's title bar 
 
 Tasks are saved in `.relay/schedules.json` in the project. They aren't shown on the phone.
 
+### Letting the agent use the browser
+
+Click the window-and-pointer icon in the chat header (it works before a new session's first message too) to let that session's agent drive Relay's browser: open pages, click, type, fill forms, read the console and network requests, and take screenshots, in the same window you're looking at, with your logins. It can check its own UI changes and you can watch it do so.
+
+- **How.** Relay gives the agent [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) (`npx chrome-devtools-mcp@latest`, with usage statistics off), connected to Relay's browser instead of a browser of its own. It's named `relay_browser`, and Claude is told to use it rather than any other browser tools you've set up. Needs Node.js for `npx`.
+- **When.** The browser opens when the agent starts working, on the address you last opened, or a blank tab. Chrome can only accept agents if it was started for them, so if Relay's browser is already open without agent access, it restarts once and reopens its tabs.
+- **No prompts for its tools.** Turning the toggle on is your approval, so Claude uses the browser tools without asking each time. Ask mode never gets the browser.
+- **Security.** While agent access is on, Chrome also listens on a random DevTools port on `127.0.0.1`. Web pages can't reach it, but other programs on your Mac could, until you close Relay's browser. Turning the toggle off stops the agent getting the browser from its next turn; the port stays open until the browser closes.
+- Forks keep the setting; each session has its own.
+
 ### Remote access from your phone
 
 Click the phone icon next to **New** in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Turn On Remote Access**), to check on sessions, read their output, send prompts, answer approvals and stop agents from your phone, from anywhere. A QR code opens; scan it with the phone's camera. Click the icon again to turn it off. It's off by default and after every reload, and it turns itself off after 24 hours, or as soon as you use the Mac again after 10 minutes away (or after it slept).

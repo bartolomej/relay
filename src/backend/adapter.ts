@@ -22,6 +22,8 @@ export interface TurnTarget {
   forkOf?: { providerSessionId: string; atProviderMessageId?: string };
   /** Ask mode: the agent may read and search, but not change anything. */
   readOnly?: boolean;
+  /** Relay's browser, for the agent to drive through Chrome DevTools MCP. */
+  browserUrl?: string;
 }
 
 /** Callbacks an adapter drives while a turn runs. */

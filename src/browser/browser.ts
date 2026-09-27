@@ -72,6 +72,10 @@ export class Browser {
   private startUrl: string | undefined;
   /** What went wrong in each tab, by its CDP session. */
   private logs = new Map<string, PageLog>();
+  /** The DevTools port agents connect to; only open once an agent has asked for the browser. */
+  private port: number | undefined;
+  /** An agent's request for the browser that is still starting it, so a second one waits for the same. */
+  private opening: Promise<string> | undefined;
 
   constructor(
     private readonly profileDir: string,
@@ -88,14 +92,46 @@ export class Browser {
       await this.cdp.send("Target.createTarget", { url });
       return;
     }
+    await this.launch(url, executable, false);
+  }
+
+  /**
+   * The address an agent's chrome-devtools-mcp connects to. Starts the browser
+   * on the url when it's closed. When it's open without a DevTools port, it
+   * restarts once with one and reopens its tabs; Chrome can only open the port at launch.
+   */
+  agentEndpoint(url: string, executable: string): Promise<string> {
+    if (this.cdp && this.port) return Promise.resolve(`http://127.0.0.1:${this.port}`);
+    if (!this.opening) {
+      this.opening = this.openForAgent(url, executable).finally(() => (this.opening = undefined));
+    }
+    return this.opening;
+  }
+
+  private async openForAgent(url: string, executable: string): Promise<string> {
+    let urls = [url];
+    if (this.cdp) {
+      const { targetInfos } = await this.cdp.send<{ targetInfos: Array<{ type: string; url: string }> }>("Target.getTargets");
+      const open = targetInfos.filter((t) => t.type === "page" && /^(https?|file):/.test(t.url)).map((t) => t.url);
+      if (open.length) urls = open;
+      await this.close();
+    }
+    await this.launch(urls[0], executable, true);
+    const cdp = this.cdp as Cdp | undefined;
+    if (cdp) for (const u of urls.slice(1)) await cdp.send("Target.createTarget", { url: u });
+    return `http://127.0.0.1:${this.port}`;
+  }
+
+  /** With `debugPort`, Chrome also listens on a free local port that agents connect to. */
+  private async launch(url: string, executable: string, debugPort: boolean): Promise<void> {
     this.picker = this.host.pickerSource();
     this.startUrl = url;
     fs.mkdirSync(this.profileDir, { recursive: true });
-    const proc = spawn(
-      executable,
-      [`--user-data-dir=${this.profileDir}`, "--remote-debugging-pipe", "--no-first-run", "--no-default-browser-check", "about:blank"],
-      { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] },
-    );
+    const portFile = path.join(this.profileDir, "DevToolsActivePort");
+    fs.rmSync(portFile, { force: true });
+    const args = [`--user-data-dir=${this.profileDir}`, "--remote-debugging-pipe", "--no-first-run", "--no-default-browser-check"];
+    if (debugPort) args.push("--remote-debugging-port=0");
+    const proc = spawn(executable, [...args, "about:blank"], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
     const cdp = new Cdp(proc.stdio[3] as Writable, proc.stdio[4] as Readable);
     this.proc = proc;
     this.cdp = cdp;
@@ -105,6 +141,7 @@ export class Browser {
         if (this.proc === proc) {
           this.proc = undefined;
           this.cdp = undefined;
+          this.port = undefined;
         }
         reject(new Error(message));
       };
@@ -116,6 +153,7 @@ export class Browser {
     cdp.onEvent((method, params, sessionId) => void this.onEvent(cdp, method, params, sessionId));
     // Pages wait for us before running anything, so the picker is in place before the app loads.
     await Promise.race([cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }), exited]);
+    if (debugPort) this.port = await Promise.race([readPort(portFile), exited]);
   }
 
   dispose(): void {
@@ -123,7 +161,20 @@ export class Browser {
     if (!proc || !cdp) return;
     this.proc = undefined;
     this.cdp = undefined;
+    this.port = undefined;
     cdp.send("Browser.close").catch(() => proc.kill());
+  }
+
+  /** Closes the browser and waits for it to exit, so the profile is free for the next launch. */
+  private async close(): Promise<void> {
+    const proc = this.proc;
+    if (!proc) return;
+    const exited = new Promise<boolean>((r) => proc.once("exit", () => r(true)));
+    this.dispose();
+    if (!(await Promise.race([exited, new Promise<boolean>((r) => setTimeout(() => r(false), 5000))]))) {
+      proc.kill();
+      await exited;
+    }
   }
 
   private async onEvent(cdp: Cdp, method: string, params: Record<string, unknown>, sessionId?: string): Promise<void> {
@@ -190,6 +241,20 @@ export class Browser {
       }
     }
   }
+}
+
+/** Chrome writes the port it picked to this file once it listens. */
+async function readPort(file: string): Promise<number> {
+  for (let i = 0; i < 100; i++) {
+    try {
+      const port = parseInt(fs.readFileSync(file, "utf8").split("\n")[0], 10);
+      if (port > 0) return port;
+    } catch {
+      // Not written yet.
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error("The browser didn't open its DevTools port.");
 }
 
 /**
