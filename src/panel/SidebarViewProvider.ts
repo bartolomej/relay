@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
+import type { Scheduler } from "../backend/scheduler";
 import { buildHtml } from "./html";
 import { PanelHost, webviewChannel } from "./PanelHost";
 
@@ -12,6 +13,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly api: SessionsApi,
+    private readonly scheduler: Scheduler,
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -19,7 +21,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")] };
     view.webview.html = buildHtml(view.webview, this.extensionUri, "sidebar");
     view.badge = this.badge;
-    const host = new PanelHost(webviewChannel(view.webview), this.api, "sidebar", () => view.visible);
+    const host = new PanelHost(webviewChannel(view.webview), this.api, this.scheduler, "sidebar", () => view.visible);
     this.host = host;
     // A session that finished while hidden is marked seen once the view shows again.
     const visibility = view.onDidChangeVisibility(() => {
@@ -36,6 +38,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   startNew(): void {
     if (this.view) this.view.show(true);
     if (this.host) this.host.startNew();
+  }
+
+  toggleScheduled(): void {
+    if (this.view) this.view.show(true);
+    if (this.host) this.host.toggleScheduled();
   }
 
   /** Count on the activity bar icon; shows even while the view is closed. */

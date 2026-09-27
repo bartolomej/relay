@@ -12,7 +12,9 @@
     "AI",
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:.relay/schedules.json"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -53,6 +55,12 @@
         "icon": "$(globe)"
       },
       {
+        "command": "relay.scheduledTasks",
+        "title": "Scheduled Tasks",
+        "category": "Relay",
+        "icon": "$(calendar)"
+      },
+      {
         "command": "relay.remoteOn",
         "title": "Turn On Remote Access",
         "category": "Relay",
@@ -88,14 +96,19 @@
           "group": "navigation@3"
         },
         {
+          "command": "relay.scheduledTasks",
+          "when": "view == relay.sidebar",
+          "group": "navigation@4"
+        },
+        {
           "command": "relay.remoteOn",
           "when": "view == relay.sidebar && !relay.remoteOn",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "relay.remoteOff",
           "when": "view == relay.sidebar && relay.remoteOn",
-          "group": "navigation@4"
+          "group": "navigation@5"
         }
       ],
       "commandPalette": [

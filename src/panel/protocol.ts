@@ -1,4 +1,4 @@
-import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "../api/types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionOptions, TaskInput } from "../api/types";
 
 export type Layout = "sidebar" | "wide";
 
@@ -24,6 +24,12 @@ export interface UiState {
   remote: boolean;
   /** Remote access is on, which keeps the computer awake while agents work. */
   remoteAccess: boolean;
+  /** Empty on the phone, which doesn't show scheduled tasks. */
+  tasks: ScheduledTask[];
+  /** The left column lists scheduled tasks instead of sessions, and the right one edits the selected task. */
+  showScheduled: boolean;
+  /** Task open in the form; undefined is a new one. */
+  selectedTaskId?: string;
   now: number;
 }
 
@@ -31,7 +37,9 @@ export type ToWebview =
   | { type: "state"; state: UiState }
   | { type: "focusInput" }
   /** Added to the end of the message box, e.g. a note from the browser. */
-  | { type: "insertText"; text: string };
+  | { type: "insertText"; text: string }
+  /** Fills the new-task form, e.g. from a session's messages. */
+  | { type: "taskDraft"; draft: TaskInput };
 
 export type FromWebview =
   | { type: "ready" }
@@ -40,6 +48,15 @@ export type FromWebview =
   /** The title-bar buttons, repeated in the editor tab, which has no title bar of its own. */
   | { type: "openBrowser" }
   | { type: "toggleRemote" }
+  | { type: "toggleScheduled" }
+  /** Without an id, a new task. */
+  | { type: "selectTask"; taskId?: string }
+  /** Creates the task without an id; `runNow` also starts a run straight away. */
+  | { type: "saveTask"; taskId?: string; task: TaskInput; runNow?: boolean }
+  | { type: "pauseTask"; taskId: string; paused: boolean }
+  | { type: "deleteTask"; taskId: string }
+  /** Opens a new task drafted from the session's messages and options. */
+  | { type: "scheduleSession"; sessionId: string }
   | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; mode?: MessageMode }
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }

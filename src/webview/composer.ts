@@ -83,7 +83,7 @@ export function refreshChips(state: UiState): void {
 }
 
 /** Switches model and keeps the effort if the new model accepts it, else its default. */
-function pickModel(opts: { model: string; effort: Effort }, m: ModelInfo): void {
+export function pickModel(opts: { model: string; effort: Effort }, m: ModelInfo): void {
   opts.model = m.id;
   if (m.efforts.length && !m.efforts.includes(opts.effort)) opts.effort = m.defaultEffort || m.efforts[Math.floor(m.efforts.length / 2)];
 }

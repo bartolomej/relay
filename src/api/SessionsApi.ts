@@ -20,8 +20,11 @@ export interface SessionsApi {
   listSessions(): Promise<Session[]>;
   getMessages(sessionId: string): Promise<Message[]>;
 
-  /** With `useWorktree`, the agent works in a git worktree created on the first message. */
-  createSession(options: SessionOptions, cwd: string, useWorktree?: boolean): Promise<Session>;
+  /**
+   * With `useWorktree`, the agent works in a git worktree created on the first
+   * message. `scheduledTaskId` tags a session a scheduled task started.
+   */
+  createSession(options: SessionOptions, cwd: string, useWorktree?: boolean, scheduledTaskId?: string): Promise<Session>;
   /**
    * Sends right away when the session is idle. While it's working, "queue"
    * holds the message until the turn ends and "interrupt" stops the turn first.

@@ -1,4 +1,5 @@
 import { isActive, minutesLabel, type Answers, type Message, type MessageMode, type Question, type Session, type ToolEvent } from "../api/types";
+import { taskName } from "../api/schedule";
 import type { UiState } from "../panel/protocol";
 import { icons } from "./icons";
 import { ago, elapsed, esc, level, tokens } from "./util";
@@ -193,6 +194,22 @@ function secondOpinion(state: UiState, s: Session): string {
   return `<button class="icon-btn" data-action="secondOpinion" data-id="${esc(s.id)}" title="${esc(title)}" aria-label="${esc(`Second opinion from ${other.label}`)}">${icons.opinion}</button>`;
 }
 
+/**
+ * A run of a scheduled task links back to the task; any other session can be
+ * turned into one, its messages drafted as the task's prompt.
+ */
+function scheduleButton(state: UiState, s: Session): string {
+  if (state.remote) return "";
+  if (s.scheduledTaskId) {
+    const task = state.tasks.find((t) => t.id === s.scheduledTaskId);
+    const title = task ? `Started by the scheduled task “${taskName(task)}”. Click to open it.` : "Started by a scheduled task that has since been deleted.";
+    return `<button class="mode-tag task-tag" data-action="selectTask" data-task="${esc(task ? task.id : "")}" title="${esc(title)}" ${task ? "" : "disabled"}>Scheduled</button>`;
+  }
+  if (!state.messages.some((m) => m.role === "user")) return "";
+  const title = "Schedule as a repeating task: opens a new task with this session's messages as its prompt";
+  return `<button class="icon-btn" data-action="scheduleSession" data-id="${esc(s.id)}" title="${title}" aria-label="Schedule as a repeating task">${icons.calendar}</button>`;
+}
+
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
     return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${keepAwakeToggle(state)}</div>`;
@@ -225,6 +242,7 @@ function head(state: UiState, s: Session | undefined): string {
     ${worktreeToggle(state, s)}
     ${keepAwakeToggle(state)}
     ${secondOpinion(state, s)}
+    ${scheduleButton(state, s)}
     <button class="icon-btn" data-action="fork" data-id="${esc(s.id)}" title="Fork session" aria-label="Fork session">${icons.fork}</button>
     ${isActive(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop session">${icons.stop}</button>` : ""}
     ${complete}

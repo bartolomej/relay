@@ -8,6 +8,7 @@ import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
 import { RealSessionsApi } from "./backend/RealSessionsApi";
+import { Scheduler } from "./backend/scheduler";
 import { Browser, findChrome, type PageNote } from "./browser/browser";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
@@ -69,13 +70,24 @@ async function createApi(context: vscode.ExtensionContext): Promise<SessionsApi>
   );
 }
 
+/** Scheduled tasks live next to the sessions, in `.relay/schedules.json`; the mock keeps them in memory. */
+function createScheduler(api: SessionsApi): Scheduler {
+  const folders = vscode.workspace.workspaceFolders || [];
+  const file = setting("backend") !== "mock" && folders.length ? path.join(folders[0].uri.fsPath, ".relay", "schedules.json") : undefined;
+  return new Scheduler(api, workspaceCwd(), file);
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const api = await createApi(context);
   context.subscriptions.push({ dispose: () => api.dispose() });
 
   watchKeepAwake(context, api);
 
-  const sidebar = new SidebarViewProvider(context.extensionUri, api);
+  const scheduler = createScheduler(api);
+  context.subscriptions.push({ dispose: () => scheduler.dispose() });
+  await scheduler.start();
+
+  const sidebar = new SidebarViewProvider(context.extensionUri, api, scheduler);
   registerBrowser(context, api, sidebar);
   registerRemote(context, api);
 
@@ -94,9 +106,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewType, sidebar, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
-    vscode.commands.registerCommand("relay.openAsTab", () => WidePanel.show(context.extensionUri, api)),
+    vscode.commands.registerCommand("relay.openAsTab", () => WidePanel.show(context.extensionUri, api, scheduler)),
     vscode.commands.registerCommand("relay.newSession", () => {
       if (!WidePanel.startNew()) sidebar.startNew();
+    }),
+    vscode.commands.registerCommand("relay.scheduledTasks", () => {
+      if (!WidePanel.toggleScheduled()) sidebar.toggleScheduled();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("relay.backend")) {

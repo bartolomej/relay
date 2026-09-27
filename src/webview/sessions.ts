@@ -1,6 +1,7 @@
 import { isActive, type Session } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons } from "./icons";
+import { scheduledToggle } from "./tasks";
 import { ago, elapsed, esc } from "./util";
 
 interface Node {
@@ -130,6 +131,7 @@ function card(state: UiState, node: Node, depth: number): string {
     </div>
     <div class="card-meta">
       ${providerIcon(state, s)}
+      ${s.scheduledTaskId ? `<span class="mode-tag card-tag">Scheduled</span>` : ""}
       <span class="ellipsis grow">${esc(forkNote)}${esc(modelLabel(state, s))} · ${esc(s.options.effort)}</span>
       ${approvalNote}
       <span class="card-tools">
@@ -150,7 +152,7 @@ function group(state: UiState, title: string, note: string, nodes: Node[]): stri
 }
 
 /** Serves Relay to the phone through Tailscale; clicking again turns it off. */
-function remoteToggle(state: UiState): string {
+export function remoteToggle(state: UiState): string {
   const on = state.remoteAccess;
   const title = on ? "Remote access is on. Click to turn it off." : "Turn on remote access from your phone";
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleRemote" title="${title}" aria-label="Remote access" aria-pressed="${on}">${icons.phone}</button>`;
@@ -186,6 +188,7 @@ export function renderSessions(state: UiState): string {
     state.layout === "wide"
       ? `<div class="section-head"><span>Sessions</span><span class="grow"></span>
            <button class="icon-btn" data-action="openBrowser" title="Open your app in Relay's browser to add notes on elements" aria-label="Open in Browser">${icons.globe}</button>
+           ${scheduledToggle(state)}
            ${remoteToggle(state)}
            <button class="btn btn-primary" data-action="newSession">${icons.plus} New</button></div>`
       : "";

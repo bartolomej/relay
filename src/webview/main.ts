@@ -3,7 +3,8 @@ import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
-import { renderSessions } from "./sessions";
+import { remoteToggle, renderSessions } from "./sessions";
+import { loadTaskDraft, renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
 import { local, post, selected } from "./state";
 import { elapsed } from "./util";
@@ -16,6 +17,10 @@ let shellBuilt = false;
  */
 let leftHtml = "";
 let chatHtml = "";
+let taskHeadHtml = "";
+let taskPanelHtml = "";
+/** What the task fields were last drawn for; they're only redrawn when that changes, so typing isn't cut off. */
+let taskFieldsFor = "";
 /**
  * Whether the chat keeps scrolling to the newest output. Scrolling up turns it
  * off; scrolling back to the bottom turns it on again.
@@ -26,20 +31,45 @@ let followedSessionId: string | undefined;
 const app = document.getElementById("app") as HTMLDivElement;
 
 function buildShell(layout: UiState["layout"]): void {
+  // Shown instead of the chat and composer while scheduled tasks are listed.
+  const task = `<div id="task" class="task-wrap"><div id="task-head"></div><div class="task-body"><div id="task-fields" class="task-fields"></div><div id="task-panel" class="task-panel"></div></div></div>`;
   app.innerHTML =
     layout === "wide"
-      ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat" class="chat-wrap"></div>${renderComposer()}</div>`
-      : `<div id="left"></div><div id="chat" class="chat-wrap"></div>${renderComposer()}`;
+      ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat" class="chat-wrap"></div>${task}${renderComposer()}</div>`
+      : `<div id="left"></div><div id="chat" class="chat-wrap"></div>${task}${renderComposer()}`;
   bindComposerOnce(() => state);
   shellBuilt = true;
 }
 
 function renderLeft(s: UiState): void {
   const left = document.getElementById("left");
-  const html = `${renderUsage(s)}${renderSessions(s)}`;
+  const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s)) : renderSessions(s)}`;
   if (!left || html === leftHtml) return;
   left.innerHTML = html;
   leftHtml = html;
+}
+
+/** The selected scheduled task's form. `redrawFields` after a choice that changes which fields there are. */
+function renderTask(s: UiState, redrawFields = false): void {
+  syncTaskForm(s);
+  const fields = document.getElementById("task-fields");
+  const fieldsFor = `${local.taskFormFor}|${s.providers.map((p) => p.models.length).join(",")}|${s.worktrees}`;
+  if (fields && (redrawFields || fieldsFor !== taskFieldsFor)) {
+    fields.innerHTML = renderTaskFields(s);
+    taskFieldsFor = fieldsFor;
+  }
+  const head = document.getElementById("task-head");
+  const headHtml = renderTaskHead(s);
+  if (head && headHtml !== taskHeadHtml) {
+    head.innerHTML = headHtml;
+    taskHeadHtml = headHtml;
+  }
+  const panel = document.getElementById("task-panel");
+  const panelHtml = renderTaskPanel(s);
+  if (panel && panelHtml !== taskPanelHtml) {
+    panel.innerHTML = panelHtml;
+    taskPanelHtml = panelHtml;
+  }
 }
 
 function render(): void {
@@ -48,6 +78,8 @@ function render(): void {
 
   renderLeft(state);
   refreshChips(state);
+  app.classList.toggle("show-scheduled", state.showScheduled);
+  if (state.showScheduled) renderTask(state);
 
   const chat = document.getElementById("chat");
   const html = renderChat(state);
@@ -103,6 +135,20 @@ function answer(sessionId: string, skip: boolean): void {
   post({ type: "answer", sessionId, answers });
 }
 
+/** A task needs a prompt; without one the prompt box gets the focus instead. */
+function saveTask(s: UiState, runNow: boolean): void {
+  const form = local.taskForm;
+  if (!form) return;
+  if (!form.prompt.trim()) {
+    const prompt = document.querySelector<HTMLTextAreaElement>('#task-fields [data-field="prompt"]');
+    if (prompt) prompt.focus();
+    return;
+  }
+  post({ type: "saveTask", taskId: s.selectedTaskId, task: form, runNow });
+  local.taskDirty = false;
+  renderTask(s);
+}
+
 /** A one-pick question takes one option; picking one clears an answer typed for it. */
 function pickOption(sessionId: string, qid: string, label: string): void {
   const s = state && state.sessions.find((x) => x.id === sessionId);
@@ -155,6 +201,9 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
     if (input) input.focus();
   } else if (e.data.type === "insertText") {
     insertText(e.data.text);
+  } else if (e.data.type === "taskDraft") {
+    loadTaskDraft(e.data.draft);
+    if (state) renderTask(state, true);
   }
 });
 
@@ -192,7 +241,7 @@ app.addEventListener("click", (e) => {
   const mid = target.dataset.mid;
   switch (action) {
     case "select":
-      if (id !== state.selectedSessionId) post({ type: "selectSession", sessionId: id });
+      if (id !== state.selectedSessionId || state.showScheduled) post({ type: "selectSession", sessionId: id });
       break;
     case "newSession":
       post({ type: "newSession" });
@@ -202,6 +251,24 @@ app.addEventListener("click", (e) => {
       break;
     case "toggleRemote":
       post({ type: "toggleRemote" });
+      break;
+    case "toggleScheduled":
+      post({ type: "toggleScheduled" });
+      break;
+    case "selectTask":
+      post({ type: "selectTask", taskId: target.dataset.task || undefined });
+      break;
+    case "saveTask":
+      saveTask(state, target.dataset.run === "1");
+      break;
+    case "pauseTask":
+      post({ type: "pauseTask", taskId: target.dataset.task || "", paused: target.dataset.paused === "1" });
+      break;
+    case "deleteTask":
+      post({ type: "deleteTask", taskId: target.dataset.task || "" });
+      break;
+    case "scheduleSession":
+      post({ type: "scheduleSession", sessionId: id });
       break;
     case "fork":
       e.stopPropagation();
@@ -298,6 +365,17 @@ app.addEventListener("input", (e) => {
   if (q && !q.multiSelect && picks && input.value.trim()) delete picks[qid];
   render();
 });
+
+// Edits in the task form: text as it's typed, choices once made.
+function onTaskField(e: Event): void {
+  const el = e.target as HTMLInputElement;
+  if (!state || !el.dataset || !el.dataset.field || !el.closest("#task-fields")) return;
+  const choice = el.tagName === "SELECT" || el.type === "checkbox";
+  if (choice !== (e.type === "change")) return;
+  renderTask(state, updateTaskField(state, el));
+}
+app.addEventListener("input", onTaskField);
+app.addEventListener("change", onTaskField);
 
 // ↵ in an answer box sends the answers once every question has one.
 app.addEventListener("keydown", (e) => {

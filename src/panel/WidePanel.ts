@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
+import type { Scheduler } from "../backend/scheduler";
 import { buildHtml } from "./html";
 import { PanelHost, webviewChannel } from "./PanelHost";
 
@@ -7,7 +8,7 @@ import { PanelHost, webviewChannel } from "./PanelHost";
 export class WidePanel {
   private static current: WidePanel | undefined;
 
-  static show(extensionUri: vscode.Uri, api: SessionsApi): void {
+  static show(extensionUri: vscode.Uri, api: SessionsApi, scheduler: Scheduler): void {
     if (WidePanel.current) {
       WidePanel.current.panel.reveal();
       return;
@@ -18,7 +19,7 @@ export class WidePanel {
       localResourceRoots: [vscode.Uri.joinPath(extensionUri, "dist")],
     });
     panel.iconPath = vscode.Uri.joinPath(extensionUri, "media", "activity.svg");
-    WidePanel.current = new WidePanel(panel, extensionUri, api);
+    WidePanel.current = new WidePanel(panel, extensionUri, api, scheduler);
   }
 
   static isViewing(sessionId: string): boolean {
@@ -46,6 +47,13 @@ export class WidePanel {
     return true;
   }
 
+  /** Switches the tab between sessions and scheduled tasks; false when the tab isn't showing. */
+  static toggleScheduled(): boolean {
+    if (!WidePanel.current || !WidePanel.current.panel.visible) return false;
+    WidePanel.current.host.toggleScheduled();
+    return true;
+  }
+
   static startNew(): boolean {
     if (!WidePanel.current || !WidePanel.current.panel.visible) return false;
     WidePanel.current.host.startNew();
@@ -58,9 +66,10 @@ export class WidePanel {
     private readonly panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
     api: SessionsApi,
+    scheduler: Scheduler,
   ) {
     panel.webview.html = buildHtml(panel.webview, extensionUri, "wide");
-    this.host = new PanelHost(webviewChannel(panel.webview), api, "wide", () => panel.visible);
+    this.host = new PanelHost(webviewChannel(panel.webview), api, scheduler, "wide", () => panel.visible);
     // A session that finished while the tab was in the background is marked seen once it shows again.
     panel.onDidChangeViewState(() => {
       if (panel.visible) this.host.refresh();

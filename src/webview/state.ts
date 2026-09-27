@@ -1,4 +1,4 @@
-import type { Answers, Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
+import type { Answers, Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions, TaskInput } from "../api/types";
 import type { FromWebview, UiState } from "../panel/protocol";
 
 import { connectRemote } from "./remote";
@@ -34,6 +34,11 @@ export const local = {
   picks: {} as Record<string, Answers>,
   /** Answers typed so far for them, by session id and question id. */
   typed: {} as Record<string, Record<string, string>>,
+  /** The scheduled-task form as edited so far, and which task it's for ("new" for a new one). */
+  taskForm: undefined as TaskInput | undefined,
+  taskFormFor: undefined as string | undefined,
+  /** The form has edits that aren't saved yet. */
+  taskDirty: false,
 };
 
 export function selected(state: UiState): Session | undefined {

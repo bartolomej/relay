@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
-import { isActive, minutesLabel, workDir, type Answers } from "../api/types";
+import { DEFAULT_RUN_LIMIT_MS, DEFAULT_SCHEDULE, taskName } from "../api/schedule";
+import { isActive, minutesLabel, workDir, type Answers, type TaskInput } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
+import { cleanTaskInput, type Scheduler } from "../backend/scheduler";
 import { isGitRepo } from "../backend/worktree";
 import { remoteStatus } from "../remote/status";
 import { findLinkable, resolveIn } from "./fileLinks";
@@ -29,6 +31,8 @@ export class PanelHost implements vscode.Disposable {
   /** Unread session the user has looked at; marked seen once they select something else. */
   private viewedUnread: string | undefined;
   private showAllPast = false;
+  private showScheduled = false;
+  private selectedTaskId: string | undefined;
   private disposables: vscode.Disposable[] = [];
   private pushQueued = false;
   private gitRepo = false;
@@ -40,6 +44,8 @@ export class PanelHost implements vscode.Disposable {
   constructor(
     private readonly channel: UiChannel,
     private readonly api: SessionsApi,
+    /** Undefined on the phone, which doesn't show scheduled tasks. */
+    private readonly scheduler: Scheduler | undefined,
     private readonly layout: Layout,
     private readonly isVisible: () => boolean,
     private readonly remote = false,
@@ -51,6 +57,7 @@ export class PanelHost implements vscode.Disposable {
     });
     const unsubscribe = api.onDidChange(() => this.schedulePush());
     this.disposables.push({ dispose: unsubscribe });
+    if (scheduler) this.disposables.push({ dispose: scheduler.onDidChange(() => this.schedulePush()) });
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("relay.keepAwake")) this.schedulePush();
@@ -67,20 +74,30 @@ export class PanelHost implements vscode.Disposable {
 
   /** Clears the selection so the next message starts a new session. */
   startNew(): void {
+    this.showScheduled = false;
     this.select(undefined);
     void this.push().then(() => this.post({ type: "focusInput" }));
   }
 
   /** Shows this session, e.g. from a notification's Open button. */
   open(sessionId: string): void {
+    this.showScheduled = false;
     this.select(sessionId);
     void this.push();
   }
 
   /** Opens the session, or a new one without an id, and adds the text to the message box for the user to send. */
   insertText(sessionId: string | undefined, text: string): void {
+    this.showScheduled = false;
     this.select(sessionId);
     void this.push().then(() => this.post({ type: "insertText", text }));
+  }
+
+  /** Switches between the sessions and the scheduled tasks. */
+  toggleScheduled(): void {
+    if (!this.scheduler) return;
+    this.showScheduled = !this.showScheduled;
+    void this.push();
   }
 
   get selectedSession(): string | undefined {
@@ -127,6 +144,8 @@ export class PanelHost implements vscode.Disposable {
     if (selected && selected.unread && !isActive(selected) && this.isVisible() && !this.remote) {
       this.viewedUnread = selected.id;
     }
+    const tasks = this.scheduler ? this.scheduler.list() : [];
+    if (this.selectedTaskId && !tasks.some((t) => t.id === this.selectedTaskId)) this.selectedTaskId = undefined;
     const messages = this.selectedSessionId ? await this.api.getMessages(this.selectedSessionId) : [];
     const linkable = selected && !this.remote ? findLinkable(messages.map((m) => m.text), workDir(selected)) : [];
     const state: UiState = {
@@ -143,6 +162,9 @@ export class PanelHost implements vscode.Disposable {
       worktrees: this.gitRepo,
       remote: this.remote,
       remoteAccess: remoteStatus.on,
+      tasks,
+      showScheduled: this.showScheduled,
+      selectedTaskId: this.selectedTaskId,
       now: Date.now(),
     };
     await this.post({ type: "state", state });
@@ -159,6 +181,7 @@ export class PanelHost implements vscode.Disposable {
         return;
       }
       case "selectSession":
+        this.showScheduled = false;
         this.select(m.sessionId);
         await this.push();
         return;
@@ -171,6 +194,28 @@ export class PanelHost implements vscode.Disposable {
       case "toggleRemote":
         // The phone can't turn Remote off; it would cut itself off.
         if (!this.remote) await vscode.commands.executeCommand(remoteStatus.on ? "relay.remoteOff" : "relay.remoteOn");
+        return;
+      case "toggleScheduled":
+        this.toggleScheduled();
+        return;
+      case "selectTask":
+        // Also from a run's Scheduled tag, which is on the sessions side.
+        if (!this.scheduler) return;
+        this.showScheduled = true;
+        this.selectedTaskId = m.taskId;
+        await this.push();
+        return;
+      case "saveTask":
+        await this.saveTask(m.taskId, m.task, !!m.runNow);
+        return;
+      case "pauseTask":
+        if (this.scheduler) await this.scheduler.setPaused(m.taskId, m.paused);
+        return;
+      case "deleteTask":
+        await this.deleteTask(m.taskId);
+        return;
+      case "scheduleSession":
+        await this.scheduleSession(m.sessionId);
         return;
       case "send": {
         let id = m.sessionId;
@@ -254,6 +299,50 @@ export class PanelHost implements vscode.Disposable {
     };
     // vscode.open picks the right editor, so images and other non-text files open too.
     await vscode.commands.executeCommand("vscode.open", uri, options);
+  }
+
+  /** Saves the form; running it now shows the new session, for trying a prompt out. */
+  private async saveTask(taskId: string | undefined, input: unknown, runNow: boolean): Promise<void> {
+    const task = cleanTaskInput(input);
+    if (!this.scheduler || !task) return;
+    const saved = await this.scheduler.save(taskId, task);
+    this.selectedTaskId = saved.id;
+    const sessionId = runNow ? await this.scheduler.runNow(saved.id) : undefined;
+    if (sessionId) {
+      this.showScheduled = false;
+      this.select(sessionId);
+    }
+    await this.push();
+  }
+
+  private async deleteTask(taskId: string): Promise<void> {
+    const task = this.scheduler && this.scheduler.list().find((t) => t.id === taskId);
+    if (!this.scheduler || !task) return;
+    const pick = await vscode.window.showWarningMessage(
+      `Delete the scheduled task “${taskName(task)}”?`,
+      { modal: true, detail: "Sessions it already started stay." },
+      "Delete",
+    );
+    if (pick) await this.scheduler.remove(taskId);
+  }
+
+  /** A new task with the session's requests as its prompt, oldest first, for the user to trim into one. */
+  private async scheduleSession(sessionId: string): Promise<void> {
+    const session = (await this.api.listSessions()).find((s) => s.id === sessionId);
+    if (!this.scheduler || !session) return;
+    const asked = (await this.api.getMessages(sessionId)).filter((m) => m.role === "user" && m.text.trim()).map((m) => m.text.trim());
+    const draft: TaskInput = {
+      name: session.title,
+      prompt: asked.join("\n\n"),
+      options: { ...session.options },
+      schedule: { ...DEFAULT_SCHEDULE },
+      useWorktree: this.gitRepo,
+      runLimitMs: DEFAULT_RUN_LIMIT_MS,
+    };
+    this.showScheduled = true;
+    this.selectedTaskId = undefined;
+    await this.push();
+    await this.post({ type: "taskDraft", draft });
   }
 
   /** A subsession with the other provider's default model; the drafted message waits for the user to send it. */

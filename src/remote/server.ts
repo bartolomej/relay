@@ -173,7 +173,7 @@ export class RemoteServer {
       if (this.clients.size >= MAX_CLIENTS) this.dropOldestIdle();
       if (this.clients.size >= MAX_CLIENTS) return send(res, 503);
       const channel = new PhoneChannel();
-      client = { channel, host: new PanelHost(channel, this.api, "sidebar", () => channel.connected, true) };
+      client = { channel, host: new PanelHost(channel, this.api, undefined, "sidebar", () => channel.connected, true) };
       this.clients.set(clientId, client);
     }
     if (client.expire) clearTimeout(client.expire);

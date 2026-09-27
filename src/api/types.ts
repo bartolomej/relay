@@ -108,6 +108,41 @@ export interface Session {
   /** Work in a git worktree of its own: created on the first message, merged back on Complete. */
   useWorktree?: boolean;
   worktree?: Worktree;
+  /** Started by this scheduled task. */
+  scheduledTaskId?: string;
+}
+
+/** How often a scheduled task runs, always at `time`. */
+export type Repeat = "daily" | "weekdays" | "weekly" | "monthly";
+
+export interface Schedule {
+  repeat: Repeat;
+  /** Local time of day, "HH:MM". */
+  time: string;
+  /** For weekly: 0 is Sunday … 6 Saturday. */
+  weekday: number;
+  /** For monthly: 1 to 31; a month without that day runs on its last day. */
+  day: number;
+}
+
+/** What the user edits about a scheduled task. */
+export interface TaskInput {
+  name: string;
+  /** The first and only message of each run; the agent starts fresh every time. */
+  prompt: string;
+  options: SessionOptions;
+  schedule: Schedule;
+  useWorktree: boolean;
+  runLimitMs?: number;
+}
+
+/** A prompt that starts a new session on a schedule. */
+export interface ScheduledTask extends TaskInput {
+  id: string;
+  createdAt: number;
+  paused?: boolean;
+  nextRunAt: number;
+  lastRunAt?: number;
 }
 
 /** A session's own checkout of the project, on a branch off the one it started from. */

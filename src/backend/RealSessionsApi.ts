@@ -108,7 +108,7 @@ export class RealSessionsApi implements SessionsApi {
 
   // -- writes --------------------------------------------------------------
 
-  async createSession(options: SessionOptions, cwd: string, useWorktree?: boolean): Promise<Session> {
+  async createSession(options: SessionOptions, cwd: string, useWorktree?: boolean, scheduledTaskId?: string): Promise<Session> {
     const now = Date.now();
     const session: Session = {
       id: nextId("s"),
@@ -124,6 +124,7 @@ export class RealSessionsApi implements SessionsApi {
       queued: [],
       transcriptPath: "",
       useWorktree: useWorktree || undefined,
+      scheduledTaskId,
     };
     // A new session is a good moment to pick up models released since the last look.
     void this.refreshProviders();
@@ -184,6 +185,7 @@ export class RealSessionsApi implements SessionsApi {
       forkedFromIndex: kept.length,
       pendingApproval: undefined,
       pendingQuestions: undefined,
+      scheduledTaskId: undefined,
       providerSessionId: undefined,
       forkOf: parent.providerSessionId
         ? { providerSessionId: parent.providerSessionId, atProviderMessageId: fromMessageId && lastAssistant ? lastAssistant.providerMessageId : undefined }

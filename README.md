@@ -92,6 +92,19 @@ Nothing fires for the session you have open, or between queued turns.
 
 Click the globe next to **New** in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Open in Browser**), and enter your app's address, e.g. `localhost:3000`. Relay opens its own Chrome window, with a profile of its own for each project. On any page, click the ✎ button in the bottom-right corner (or press ⌥⇧C), click an element, and write what should change. The popup's dropdown picks the chat, defaulting to the one open in Relay. The note is added to that chat's message box with the page address, a CSS selector for the element, and the element's text, so you can review it or collect several before sending. While you pick, the app doesn't see your clicks. Pages can't see or send notes themselves, because the picker runs apart from their scripts.
 
+### Scheduled tasks
+
+Click the calendar next to the globe in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Scheduled Tasks**), to see the project's scheduled tasks. Click it again to go back to the sessions. A task is a prompt that starts a new session on a schedule: **daily**, on **weekdays**, **weekly** on a chosen day, or **monthly** on a chosen date (a month without that date runs on its last day), always at a set time. Each task also picks its provider, model and effort, and a time limit per run (1 hour by default).
+
+- **One prompt per run.** Each run is a new session that gets the prompt as its only message and starts with no memory of earlier runs, so the prompt has to say everything the agent needs to know.
+- **Try it out.** **Save and run now** starts a run straight away and opens it. Adjust the prompt and run it again until the result is right, then leave it to the schedule.
+- **From a session.** The calendar in a chat's header opens a new task with that session's messages, oldest first, as the prompt. Trim them into one self-contained request.
+- **Runs are sessions.** They show up in the list like any other session with a **Scheduled** tag, notify you when they finish, and are listed under **Runs** in the task. The tag in a run's header opens its task.
+- **Worktree by default.** In a git project, each run works in its own worktree (see **Worktrees** above), so your project folder stays untouched. **Complete** merges a run's work back.
+- **Only while VS Code is open.** Tasks run while this project is open in VS Code; opening a project that has scheduled tasks starts Relay by itself. A run that was due while VS Code was closed or the Mac slept starts once when it's back, however many were missed. A run is skipped if the task's previous run is still working, including one waiting for an approval.
+
+Tasks are saved in `.relay/schedules.json` in the project. They aren't shown on the phone.
+
 ### Remote access from your phone
 
 Click the phone icon next to **New** in the editor tab, or in Relay's title bar in the sidebar (or run **Relay: Turn On Remote Access**), to check on sessions, read their output, send prompts, answer approvals and stop agents from your phone, from anywhere. A QR code opens; scan it with the phone's camera. Click the icon again to turn it off. It's off by default and after every reload, and it turns itself off after 24 hours, or as soon as you use the Mac again after 10 minutes away (or after it slept).
@@ -164,13 +177,14 @@ How it fits together:
 - **[Claude](src/backend/claude.ts)** runs through the Agent SDK on your installed `claude`: one query per turn, resumed by session id.
 - **[Codex](src/backend/codex.ts)** runs through one long-lived `codex app-server` process: each session is a Codex thread, and the adapter talks to it over JSON-RPC on stdio.
 - **The mock** ([MockSessionsApi](src/api/MockSessionsApi.ts)) is the same core with fake adapters.
+- **Scheduled tasks** are started by the [Scheduler](src/backend/scheduler.ts), which checks every 30 seconds and creates sessions through the same SessionsApi; [schedule.ts](src/api/schedule.ts) works out when each one comes up.
 - **The UI** is a webview ([src/webview](src/webview)) fed full state snapshots by [PanelHost](src/panel/PanelHost.ts).
 
 ```
 src/
   extension.ts            activation, commands, notifications, wiring
   api/                    shared types, the SessionsApi interface, the mock
-  backend/                session rules, Claude and Codex adapters, .relay store
+  backend/                session rules, Claude and Codex adapters, .relay store, scheduler
   panel/                  webview hosts (sidebar, editor tab), protocol, file links, attention
-  webview/                sessions list, chat, composer, markdown, styles
+  webview/                sessions list, chat, composer, scheduled tasks, markdown, styles
 ```
