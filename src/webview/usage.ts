@@ -36,14 +36,26 @@ function provider(state: UiState, u: ProviderUsage): string {
   </div>`;
 }
 
-/** Collapsed: the fullest window per provider, since that's the one that will stop you. */
+/** The rolling 5 hour window: Claude's "Session (5h)", Codex's "5h limit". */
+function isSession(w: UsageWindow): boolean {
+  return /\b5h\b/.test(w.label);
+}
+
+/**
+ * Collapsed: the 5 hour window, then the fullest of the rest per provider,
+ * since that's the one that will stop you. E.g. "Claude 5%/40%".
+ */
 function summary(state: UiState): string {
   return state.usage
     .filter((u) => u.windows.length)
     .map((u) => {
-      const top = u.windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a));
-      const pct = Math.round(top.usedPercent);
-      return `<span class="usage-sum usage-sum-${level(pct)}" title="${esc(top.label)}">${esc(label(state, u))} ${pct}%</span>`;
+      const session = u.windows.find(isSession);
+      const rest = u.windows.filter((w) => w !== session);
+      const top = rest.length ? rest.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a)) : undefined;
+      const shown = [session, top].filter((w): w is UsageWindow => !!w);
+      const pcts = shown.map((w) => Math.round(w.usedPercent));
+      const title = shown.map((w, i) => `${w.label}: ${pcts[i]}%`).join(" / ");
+      return `<span class="usage-sum usage-sum-${level(Math.max(...pcts))}" title="${esc(title)}">${esc(label(state, u))} ${pcts.map((p) => `${p}%`).join("/")}</span>`;
     })
     .join("");
 }
