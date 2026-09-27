@@ -50,7 +50,7 @@ export class Attention implements vscode.Disposable {
       // A queued message starts the next turn right away, so the session stays active and nothing fires.
       const wasActive = before === "running" || before === "waiting";
       if (wasActive && !isActive(s) && s.unread) this.announce(s, s.status === "failed" ? "failed" : "finished");
-      else if (before !== "waiting" && s.status === "waiting") this.announce(s, "needs approval");
+      else if (before !== "waiting" && s.status === "waiting") this.announce(s, s.pendingQuestions ? "has a question" : "needs approval");
     }
     this.updateBadge(sessions);
   }
@@ -59,14 +59,19 @@ export class Attention implements vscode.Disposable {
     const review = sessions.filter((s) => s.unread && !s.archived && !isActive(s)).length;
     const waiting = sessions.filter((s) => s.status === "waiting").length;
     const total = review + waiting;
-    const parts = [review ? `${review} ready to review` : "", waiting ? `${waiting} waiting for approval` : ""].filter(Boolean);
+    const parts = [review ? `${review} ready to review` : "", waiting ? `${waiting} waiting for you` : ""].filter(Boolean);
     this.hooks.setBadge(total ? { value: total, tooltip: parts.join(", ") } : undefined);
   }
 
-  private announce(s: Session, what: "finished" | "failed" | "needs approval"): void {
+  private announce(s: Session, what: "finished" | "failed" | "needs approval" | "has a question"): void {
     const level = this.hooks.level();
     if (level === "off") return;
-    const detail = what === "needs approval" && s.pendingApproval ? `: ${s.pendingApproval.summary}` : "";
+    const detail =
+      what === "needs approval" && s.pendingApproval
+        ? `: ${s.pendingApproval.summary}`
+        : what === "has a question" && s.pendingQuestions
+          ? `: ${s.pendingQuestions[0].question}`
+          : "";
     const text = `${s.title} ${what}${detail}`;
     const show = what === "finished" ? vscode.window.showInformationMessage : vscode.window.showWarningMessage;
     void show(text, "Open").then((pick) => {

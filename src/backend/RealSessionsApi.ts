@@ -3,6 +3,7 @@ import {
   isActive,
   minutesLabel,
   workDir,
+  type Answers,
   type ApprovalDecision,
   type Delivery,
   type Message,
@@ -55,6 +56,7 @@ export class RealSessionsApi implements SessionsApi {
   /** Settles when the session's current turn has fully ended. */
   private running = new Map<string, Promise<void>>();
   private approvals = new Map<string, (d: ApprovalDecision) => void>();
+  private answers = new Map<string, (a: Answers | undefined) => void>();
   private timers: Array<ReturnType<typeof setInterval>> = [];
   /** Latest title request per session; an older answer arriving late is dropped. */
   private titleRequests = new Map<string, number>();
@@ -181,6 +183,7 @@ export class RealSessionsApi implements SessionsApi {
       forkedFromMessageId: kept.length ? kept[kept.length - 1].id : undefined,
       forkedFromIndex: kept.length,
       pendingApproval: undefined,
+      pendingQuestions: undefined,
       providerSessionId: undefined,
       forkOf: parent.providerSessionId
         ? { providerSessionId: parent.providerSessionId, atProviderMessageId: fromMessageId && lastAssistant ? lastAssistant.providerMessageId : undefined }
@@ -202,6 +205,11 @@ export class RealSessionsApi implements SessionsApi {
   async respondToApproval(sessionId: string, decision: ApprovalDecision): Promise<void> {
     const resolve = this.approvals.get(sessionId);
     if (resolve) resolve(decision);
+  }
+
+  async answerQuestions(sessionId: string, answers: Answers | undefined): Promise<void> {
+    const resolve = this.answers.get(sessionId);
+    if (resolve) resolve(answers);
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {
@@ -341,6 +349,20 @@ export class RealSessionsApi implements SessionsApi {
           });
           activity();
         }),
+      questions: (questions) =>
+        new Promise<Answers | undefined>((resolve) => {
+          if (!live()) return resolve(undefined);
+          session.status = "waiting";
+          session.pendingQuestions = questions;
+          this.answers.set(session.id, (answers) => {
+            this.answers.delete(session.id);
+            session.pendingQuestions = undefined;
+            if (live()) session.status = "running";
+            activity();
+            resolve(answers);
+          });
+          activity();
+        }),
       context: (usage) => {
         if (!live()) return;
         session.context = usage;
@@ -396,7 +418,10 @@ export class RealSessionsApi implements SessionsApi {
     this.mergeRetries.delete(session.id);
     const resolve = this.approvals.get(session.id);
     if (resolve) resolve("deny");
+    const answer = this.answers.get(session.id);
+    if (answer) answer(undefined);
     session.pendingApproval = undefined;
+    session.pendingQuestions = undefined;
     const list = this.store.messagesOf(session.id);
     const last = list[list.length - 1];
     if (last && last.role === "assistant" && last.streaming) last.text = last.text ? `${last.text} [interrupted]` : "[interrupted]";

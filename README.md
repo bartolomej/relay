@@ -66,9 +66,13 @@ Both agents run in their **auto** mode.
 - **Claude** uses its auto permission mode. Whatever its classifier wants a person to confirm appears on the Allow / Deny card.
 - **Codex** uses its Auto preset. It edits files and runs commands inside the project on its own, and asks only for network access or writes outside the project.
 
+### Questions
+
+When an agent asks multiple-choice questions (Claude's `AskUserQuestion`, Codex's `request_user_input`), they appear as a card in the chat with each option as a button. Click to pick (questions marked "pick any" take several), or type your own answer under the options. A single question is answered by clicking an option; with several, **Send answers** sends them once each has one. **Answer in a message** has the agent ask in plain text instead. The session waits under **Working** and the card says "Has a question", with the same notifications as an approval.
+
 ### Getting your attention
 
-When a session you aren't looking at finishes, fails, or stops for an approval:
+When a session you aren't looking at finishes, fails, or stops for an approval or a question:
 
 - the Relay icon in the activity bar shows a count of sessions to review or approve,
 - a VS Code notification appears with an **Open** button,
@@ -136,7 +140,6 @@ This builds `relay.vsix` and installs it into VS Code. Reload any open windows, 
 
 ## Known limitations
 
-- When an agent asks a multiple-choice question (Claude's `AskUserQuestion`), Relay declines it and the agent asks in plain text instead.
 - Codex file-change approvals list the files but don't show the diff yet.
 - Code blocks aren't syntax-highlighted.
 - Clicking the macOS notification opens Script Editor, not VS Code. Use the in-app **Open** button.

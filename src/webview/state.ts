@@ -1,4 +1,4 @@
-import type { Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
+import type { Answers, Effort, MessageMode, ProviderId, ProviderInfo, Session, SessionOptions } from "../api/types";
 import type { FromWebview, UiState } from "../panel/protocol";
 
 import { connectRemote } from "./remote";
@@ -30,6 +30,10 @@ export const local = {
   worktree: false,
   /** How the next message is sent. Plan goes back to normal after each send; ask stays until switched. */
   mode: "normal" as MessageMode,
+  /** Options picked so far for a session's pending questions, by session id. */
+  picks: {} as Record<string, Answers>,
+  /** Answers typed so far for them, by session id and question id. */
+  typed: {} as Record<string, Record<string, string>>,
 };
 
 export function selected(state: UiState): Session | undefined {

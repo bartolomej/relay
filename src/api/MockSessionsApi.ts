@@ -33,8 +33,9 @@ const REPLY =
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * A pretend provider: streams a canned reply a couple of words at a time, and
- * asks for approval when the prompt mentions a migration. It runs through the
+ * A pretend provider: streams a canned reply a couple of words at a time,
+ * asks for approval when the prompt mentions a migration, and asks
+ * multiple-choice questions when it says "choose" or "pick". It runs through the
  * same RealSessionsApi as Claude and Codex, so the UI rules are exercised for real.
  */
 class MockAdapter implements ProviderAdapter {
@@ -66,6 +67,29 @@ class MockAdapter implements ProviderAdapter {
         return { ok: true };
       }
       sink.tool({ id: `run-${Date.now()}`, kind: "run", label: "Ran", target: "npm run db:migrate -- --to latest", detail: "exit 0", ok: true });
+    }
+    if (/\b(choose|pick)\b/i.test(text)) {
+      const answers = await sink.questions([
+        {
+          id: "library",
+          header: "Library",
+          question: "Which library should parse the dates?",
+          options: [
+            { label: "date-fns", description: "Small, tree-shakeable functions" },
+            { label: "Temporal", description: "The built-in API, with a polyfill for now" },
+          ],
+        },
+        {
+          id: "formats",
+          header: "Formats",
+          question: "Which formats should be accepted?",
+          options: [{ label: "ISO 8601" }, { label: "RFC 2822" }, { label: "Unix seconds" }],
+          multiSelect: true,
+        },
+      ]);
+      if (stopped()) return { ok: true };
+      sink.text(answers ? `Going with ${Object.values(answers).map((a) => a.join(" and ")).join(", accepting ")}.` : "Sure, tell me in a message.");
+      return { ok: true };
     }
     const words = REPLY.split(" ");
     let used = 30_000 + text.length * 4;

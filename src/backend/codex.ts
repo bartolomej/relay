@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import * as path from "path";
 import * as readline from "readline";
-import type { ApprovalDecision, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, ToolEvent, UsageWindow } from "../api/types";
+import type { ApprovalDecision, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 
@@ -51,6 +51,15 @@ interface Turn {
   id: string;
   status: "completed" | "interrupted" | "failed" | "inProgress";
   error: { message: string } | null;
+}
+
+/** request_user_input, still marked experimental in the protocol. */
+interface UserInputQuestion {
+  id: string;
+  header: string;
+  question: string;
+  isSecret: boolean;
+  options: Array<{ label: string; description: string }> | null;
 }
 
 interface RpcMessage {
@@ -399,6 +408,22 @@ export class CodexAdapter implements ProviderAdapter {
       };
       const answer = await turn.sink.approval(request);
       return { decision: toDecision(answer) };
+    }
+    if (method === "item/tool/requestUserInput") {
+      const p = params as { questions: UserInputQuestion[] };
+      if (!turn) throw new Error("No turn is running.");
+      const questions: Question[] = p.questions.map((q) => ({
+        id: q.id,
+        header: q.header,
+        question: q.question,
+        options: q.options || [],
+        secret: q.isSecret || undefined,
+      }));
+      const answers = await turn.sink.questions(questions);
+      if (!answers) throw new Error("The user would rather answer in a message. Ask your questions in plain text instead.");
+      const out: Record<string, { answers: string[] }> = {};
+      for (const [id, picked] of Object.entries(answers)) out[id] = { answers: picked };
+      return { answers: out };
     }
     throw new Error(`Relay can't answer ${method} yet.`);
   }

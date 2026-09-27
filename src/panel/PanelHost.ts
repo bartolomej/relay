@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
-import { isActive, minutesLabel, workDir } from "../api/types";
+import { isActive, minutesLabel, workDir, type Answers } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
 import { isGitRepo } from "../backend/worktree";
 import { remoteStatus } from "../remote/status";
@@ -204,6 +204,9 @@ export class PanelHost implements vscode.Disposable {
       case "approve":
         await this.api.respondToApproval(m.sessionId, m.decision);
         return;
+      case "answer":
+        await this.api.answerQuestions(m.sessionId, cleanAnswers(m.answers));
+        return;
       case "complete":
         await this.api.archiveSession(m.sessionId);
         return;
@@ -268,6 +271,16 @@ export class PanelHost implements vscode.Disposable {
     if (text.trim() && !ms) return;
     await this.api.setRunLimit(sessionId, ms);
   }
+}
+
+/** Answers can come from the phone, so only lists of text get through to the agent. */
+function cleanAnswers(answers: unknown): Answers | undefined {
+  if (!answers || typeof answers !== "object") return undefined;
+  const out: Answers = {};
+  for (const [id, picked] of Object.entries(answers)) {
+    if (Array.isArray(picked)) out[id] = picked.filter((a): a is string => typeof a === "string");
+  }
+  return out;
 }
 
 export function keepAwakeEnabled(): boolean {

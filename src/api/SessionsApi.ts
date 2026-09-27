@@ -1,4 +1,4 @@
-import type { ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "./types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "./types";
 
 export type Unsubscribe = () => void;
 
@@ -33,6 +33,8 @@ export interface SessionsApi {
   forkSession(sessionId: string, fromMessageId?: string): Promise<Session>;
   stopSession(sessionId: string): Promise<void>;
   respondToApproval(sessionId: string, decision: ApprovalDecision): Promise<void>;
+  /** Without answers the agent is told to ask in plain text instead. */
+  answerQuestions(sessionId: string, answers: Answers | undefined): Promise<void>;
   renameSession(sessionId: string, title: string): Promise<void>;
   /** Max time a run may work before it's stopped; undefined removes the limit. */
   setRunLimit(sessionId: string, limitMs: number | undefined): Promise<void>;

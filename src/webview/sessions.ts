@@ -90,7 +90,7 @@ function providerIcon(state: UiState, s: Session): string {
 
 function timeCell(s: Session, now: number): string {
   if (s.status === "running") return elapsed(s.runStartedAt || s.createdAt, now);
-  if (s.status === "waiting") return "Needs approval";
+  if (s.status === "waiting") return s.pendingQuestions ? "Has a question" : "Needs approval";
   return ago(s.lastActivityAt, now);
 }
 
@@ -101,7 +101,9 @@ function card(state: UiState, node: Node, depth: number): string {
   const approvalNote =
     depth === 0 && s.pendingApproval
       ? `<span class="mono">${esc(`${s.pendingApproval.kind}: ${s.pendingApproval.detail.split(" ").slice(0, 2).join(" ")}`)}</span>`
-      : "";
+      : depth === 0 && s.pendingQuestions
+        ? `<span>${esc(s.pendingQuestions.map((q) => q.header || q.question).join(", "))}</span>`
+        : "";
   const canStop = isActive(s);
   const canComplete = !isActive(s) && !s.archived;
   const approval =

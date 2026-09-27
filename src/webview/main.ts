@@ -1,10 +1,10 @@
 import { minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
-import { renderChat } from "./chat";
+import { answersFor, renderChat } from "./chat";
 import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
 import { renderSessions } from "./sessions";
 import { renderUsage, usageOpen } from "./usage";
-import { local, post } from "./state";
+import { local, post, selected } from "./state";
 import { elapsed } from "./util";
 
 let state: UiState | undefined;
@@ -59,9 +59,12 @@ function render(): void {
     followOutput = true;
   }
   const prevScroll = messages ? messages.scrollTop : 0;
+  const active = document.activeElement as HTMLInputElement | null;
+  const typing = active && active.classList.contains("question-other") ? { qid: active.dataset.qid, at: active.selectionStart } : undefined;
 
   chat.outerHTML = `<div id="chat" class="chat-wrap">${html}</div>`;
   chatHtml = html;
+  restoreTyped(typing);
 
   const nextMessages = document.getElementById("messages");
   if (nextMessages) {
@@ -69,6 +72,50 @@ function render(): void {
     lastScrollTop = nextMessages.scrollTop;
   }
   updatePinned();
+}
+
+/** Puts typed answers back after a redraw, and the cursor where it was. */
+function restoreTyped(typing: { qid?: string; at: number | null } | undefined): void {
+  document.querySelectorAll<HTMLInputElement>("#chat .question-other").forEach((input) => {
+    const typed = local.typed[input.dataset.id || ""];
+    input.value = (typed && typed[input.dataset.qid || ""]) || "";
+    if (typing && typing.qid === input.dataset.qid) {
+      input.focus();
+      const at = typing.at === null ? input.value.length : typing.at;
+      input.setSelectionRange(at, at);
+    }
+  });
+}
+
+/** Sends the answers, or none to have the agent ask in a message, and forgets the picks. */
+function answer(sessionId: string, skip: boolean): void {
+  const s = state && state.sessions.find((x) => x.id === sessionId);
+  if (!s) return;
+  const answers = skip ? undefined : answersFor(s);
+  if (!skip && !answers) return;
+  delete local.picks[sessionId];
+  delete local.typed[sessionId];
+  post({ type: "answer", sessionId, answers });
+}
+
+/** A one-pick question takes one option; picking one clears an answer typed for it. */
+function pickOption(sessionId: string, qid: string, label: string): void {
+  const s = state && state.sessions.find((x) => x.id === sessionId);
+  const qs = (s && s.pendingQuestions) || [];
+  const q = qs.find((x) => x.id === qid);
+  if (!q) return;
+  const picks = local.picks[sessionId] || (local.picks[sessionId] = {});
+  const picked = picks[qid] || [];
+  if (q.multiSelect) {
+    picks[qid] = picked.includes(label) ? picked.filter((x) => x !== label) : picked.concat(label);
+  } else {
+    picks[qid] = [label];
+    const typed = local.typed[sessionId];
+    if (typed) delete typed[qid];
+  }
+  // A single one-pick question is answered by the click itself.
+  if (qs.length === 1 && !q.multiSelect) return answer(sessionId, false);
+  render();
 }
 
 function trackScroll(box: HTMLElement): void {
@@ -166,6 +213,15 @@ app.addEventListener("click", (e) => {
       e.stopPropagation();
       post({ type: "approve", sessionId: id, decision: target.dataset.decision as ApprovalDecision });
       break;
+    case "pickOption":
+      pickOption(id, target.dataset.qid || "", target.dataset.label || "");
+      break;
+    case "answer":
+      answer(id, false);
+      break;
+    case "skipQuestions":
+      answer(id, true);
+      break;
     case "complete":
       e.stopPropagation();
       post({ type: "complete", sessionId: id });
@@ -219,6 +275,28 @@ app.addEventListener("click", (e) => {
       break;
     }
   }
+});
+
+// Typing an answer: a one-pick question drops its picked option, since the typed text replaces it.
+app.addEventListener("input", (e) => {
+  const input = e.target as HTMLInputElement;
+  if (!input.classList.contains("question-other") || !state) return;
+  const sessionId = input.dataset.id || "";
+  const qid = input.dataset.qid || "";
+  (local.typed[sessionId] || (local.typed[sessionId] = {}))[qid] = input.value;
+  const s = selected(state);
+  const q = s && s.pendingQuestions && s.pendingQuestions.find((x) => x.id === qid);
+  const picks = local.picks[sessionId];
+  if (q && !q.multiSelect && picks && input.value.trim()) delete picks[qid];
+  render();
+});
+
+// ↵ in an answer box sends the answers once every question has one.
+app.addEventListener("keydown", (e) => {
+  const input = e.target as HTMLInputElement;
+  if (e.key !== "Enter" || e.isComposing || !input.classList.contains("question-other")) return;
+  e.preventDefault();
+  answer(input.dataset.id || "", false);
 });
 
 // #messages is replaced on every render, so listen in the capture phase on the stable root.

@@ -43,6 +43,28 @@ export interface PendingApproval {
   detail: string;
 }
 
+/** A multiple-choice question from the agent; the user picks options or types an answer. */
+export interface Question {
+  /** What the answer is keyed by. */
+  id: string;
+  /** Short tag, e.g. "Library". */
+  header: string;
+  question: string;
+  /** Empty when only a typed answer fits. */
+  options: QuestionOption[];
+  multiSelect?: boolean;
+  /** The typed answer is hidden while typed, e.g. a password. */
+  secret?: boolean;
+}
+
+export interface QuestionOption {
+  label: string;
+  description?: string;
+}
+
+/** Per question id: the picked labels, or what the user typed. */
+export type Answers = Record<string, string[]>;
+
 export interface Session {
   id: string;
   title: string;
@@ -71,6 +93,8 @@ export interface Session {
   /** 1-based index of that message in the parent, for display. */
   forkedFromIndex?: number;
   pendingApproval?: PendingApproval;
+  /** The agent asked these and waits for the answers. */
+  pendingQuestions?: Question[];
   /** Sent while the session was busy; delivered in order as each turn ends. */
   queued: QueuedMessage[];
   /** Context window fill as of the last model turn. */

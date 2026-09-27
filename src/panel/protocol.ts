@@ -1,4 +1,4 @@
-import type { ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "../api/types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "../api/types";
 
 export type Layout = "sidebar" | "wide";
 
@@ -46,6 +46,8 @@ export type FromWebview =
   | { type: "fork"; sessionId: string; messageId?: string }
   | { type: "stop"; sessionId: string }
   | { type: "approve"; sessionId: string; decision: ApprovalDecision }
+  /** Without answers the agent asks in a message instead. */
+  | { type: "answer"; sessionId: string; answers?: Answers }
   | { type: "complete"; sessionId: string }
   | { type: "toggleAllPast" }
   | { type: "toggleKeepAwake" }

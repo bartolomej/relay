@@ -133,6 +133,7 @@ export class SessionStore {
       s.status = "failed";
       s.unread = true;
       s.pendingApproval = undefined;
+      s.pendingQuestions = undefined;
     }
     for (const m of messages) m.streaming = false;
     this.sessions.set(s.id, s);

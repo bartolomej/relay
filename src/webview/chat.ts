@@ -1,4 +1,4 @@
-import { isActive, minutesLabel, type Message, type MessageMode, type Session, type ToolEvent } from "../api/types";
+import { isActive, minutesLabel, type Answers, type Message, type MessageMode, type Question, type Session, type ToolEvent } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons } from "./icons";
 import { ago, elapsed, esc, level, tokens } from "./util";
@@ -67,6 +67,64 @@ function approval(s: Session): string {
       <button class="btn btn-primary" data-action="approve" data-id="${esc(s.id)}" data-decision="allow">Allow</button>
       <button class="btn" data-action="approve" data-id="${esc(s.id)}" data-decision="deny">Deny</button>
       <button class="btn" data-action="approve" data-id="${esc(s.id)}" data-decision="always">Always allow ${esc(s.pendingApproval.detail.split(" ").slice(0, 2).join(" "))}</button>
+    </div>
+  </div>`;
+}
+
+/** A typed answer replaces the pick of a one-pick question and adds to a pick-any one. */
+function answerTo(q: Question, sessionId: string): string[] {
+  const picked = (local.picks[sessionId] || {})[q.id] || [];
+  const typed = ((local.typed[sessionId] || {})[q.id] || "").trim();
+  if (!typed) return picked;
+  return q.multiSelect ? picked.concat(typed) : [typed];
+}
+
+/** Everything answered so far; undefined until every question has an answer. */
+export function answersFor(s: Session): Answers | undefined {
+  const qs = s.pendingQuestions || [];
+  const answers: Answers = {};
+  for (const q of qs) {
+    const a = answerTo(q, s.id);
+    if (!a.length) return undefined;
+    answers[q.id] = a;
+  }
+  return answers;
+}
+
+/**
+ * The agent's multiple-choice questions. Typed answers aren't part of the
+ * HTML, so typing doesn't redraw the chat; main.ts puts them back after a redraw.
+ */
+function questions(s: Session): string {
+  const qs = s.pendingQuestions;
+  if (!qs || !qs.length) return "";
+  const picks = local.picks[s.id] || {};
+  const body = qs
+    .map((q) => {
+      const picked = picks[q.id] || [];
+      const options = q.options
+        .map((o) => {
+          const on = picked.includes(o.label);
+          const desc = o.description ? `<span class="option-desc">${esc(o.description)}</span>` : "";
+          return `<button class="option ${on ? "picked" : ""}" data-action="pickOption" data-id="${esc(s.id)}" data-qid="${esc(q.id)}" data-label="${esc(o.label)}" aria-pressed="${on}"><span class="option-label">${esc(o.label)}</span>${desc}</button>`;
+        })
+        .join("");
+      const tag = q.header ? `<span class="mode-tag">${esc(q.header)}</span>` : "";
+      const any = q.multiSelect ? `<span class="muted"> · pick any</span>` : "";
+      const hint = q.options.length ? "Or type your own answer…" : "Type your answer…";
+      return `<div class="question">
+        <div class="question-text">${tag}${esc(q.question)}${any}</div>
+        ${options ? `<div class="question-options">${options}</div>` : ""}
+        <input class="question-other" type="${q.secret ? "password" : "text"}" data-id="${esc(s.id)}" data-qid="${esc(q.id)}" placeholder="${hint}" aria-label="${esc(hint)}">
+      </div>`;
+    })
+    .join("");
+  return `<div class="approval">
+    <div class="approval-title">${icons.clock}<span>${qs.length > 1 ? "has a few questions" : "has a question"}</span></div>
+    ${body}
+    <div class="approval-actions">
+      <button class="btn btn-primary" data-action="answer" data-id="${esc(s.id)}" ${answersFor(s) ? "" : "disabled"}>Send ${qs.length > 1 ? "answers" : "answer"}</button>
+      <button class="btn" data-action="skipQuestions" data-id="${esc(s.id)}" title="The agent asks in a message instead, and you reply in the message box">Answer in a message</button>
     </div>
   </div>`;
 }
@@ -189,6 +247,6 @@ export function renderChat(state: UiState): string {
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
-      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${approval(s)}</div>`;
+      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${approval(s)}${questions(s)}</div>`;
   return `<div class="chat">${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }

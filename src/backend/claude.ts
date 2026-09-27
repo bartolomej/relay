@@ -1,7 +1,8 @@
 import * as os from "os";
 import * as path from "path";
 import type * as Sdk from "@anthropic-ai/claude-agent-sdk";
-import type { Effort, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, ToolEvent, UsageWindow } from "../api/types";
+import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
+import type { Effort, ModelInfo, PendingApproval, ProviderInfo, ProviderUsage, Question, ToolEvent, UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 
@@ -272,9 +273,13 @@ export class ClaudeAdapter implements ProviderAdapter {
     input: Record<string, unknown>,
     suggestions: Sdk.PermissionUpdate[] | undefined,
   ): Promise<Sdk.PermissionResult> {
-    // Multiple-choice questions need a form this panel doesn't have yet.
     if (name === "AskUserQuestion") {
-      return { behavior: "deny", message: "This client can't show multiple-choice questions. Ask in plain text instead." };
+      const answers = await sink.questions(toQuestions(input));
+      if (!answers) return { behavior: "deny", message: "The user would rather answer in a message. Ask your questions in plain text instead." };
+      // Keyed by question text; several picks are comma-separated.
+      const byQuestion: Record<string, string> = {};
+      for (const [question, picked] of Object.entries(answers)) byQuestion[question] = picked.join(", ");
+      return { behavior: "allow", updatedInput: { ...input, answers: byQuestion } };
     }
     const decision = await sink.approval(approvalFor(name, input, cwd));
     if (decision === "deny") return { behavior: "deny", message: "The user declined this." };
@@ -283,6 +288,18 @@ export class ClaudeAdapter implements ProviderAdapter {
 }
 
 // -- mapping ----------------------------------------------------------------
+
+/** AskUserQuestion's input; answers go back keyed by the question text. */
+function toQuestions(input: Record<string, unknown>): Question[] {
+  const questions = (input as Partial<AskUserQuestionInput>).questions || [];
+  return questions.map((q) => ({
+    id: q.question,
+    header: q.header,
+    question: q.question,
+    options: q.options.map((o) => ({ label: o.label, description: o.description })),
+    multiSelect: q.multiSelect,
+  }));
+}
 
 function toModel(m: Sdk.ModelInfo): ModelInfo {
   const efforts: Effort[] = m.supportedEffortLevels ? m.supportedEffortLevels.slice() : [];
@@ -391,6 +408,8 @@ function toolRow(id: string, name: string, input: Record<string, unknown>, cwd: 
       return { id, kind: "other", label: "Fetched", target: str(input.url) };
     case "WebSearch":
       return { id, kind: "other", label: "Searched web", target: str(input.query) };
+    case "AskUserQuestion":
+      return { id, kind: "other", label: "Asked", target: toQuestions(input).map((q) => q.question).join(" · ") };
     case "Task":
     case "Agent":
       return { id, kind: "other", label: "Delegated", target: str(input.description) };
@@ -403,8 +422,13 @@ function toolRow(id: string, name: string, input: Record<string, unknown>, cwd: 
 function toolResult(isError: boolean, result: unknown): Partial<ToolEvent> {
   const out: Partial<ToolEvent> = { ok: !isError };
   if (isError) out.detail = "failed";
-  const r = result as { structuredPatch?: Array<{ lines?: string[] }>; type?: string; content?: string } | undefined;
-  if (r && Array.isArray(r.structuredPatch) && r.structuredPatch.length) {
+  const r = result as { structuredPatch?: Array<{ lines?: string[] }>; type?: string; content?: string; answers?: Record<string, string> } | undefined;
+  if (r && r.answers && typeof r.answers === "object") {
+    // An answered AskUserQuestion: show what was picked next to each question.
+    out.target = Object.entries(r.answers)
+      .map(([q, a]) => `${q} ${a}`)
+      .join(" · ");
+  } else if (r && Array.isArray(r.structuredPatch) && r.structuredPatch.length) {
     let added = 0;
     let removed = 0;
     for (const hunk of r.structuredPatch) {

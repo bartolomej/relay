@@ -1,10 +1,12 @@
 import type {
+  Answers,
   ApprovalDecision,
   ContextUsage,
   PendingApproval,
   ProviderId,
   ProviderInfo,
   ProviderUsage,
+  Question,
   SessionOptions,
   ToolEvent,
 } from "../api/types";
@@ -32,6 +34,8 @@ export interface TurnSink {
   tool(event: ToolEvent): void;
   /** Resolves with the user's answer. */
   approval(request: PendingApproval): Promise<ApprovalDecision>;
+  /** Resolves with the user's answers, or undefined when they'd rather answer in a message. */
+  questions(questions: Question[]): Promise<Answers | undefined>;
   context(usage: ContextUsage): void;
   /** Provider id of the latest assistant message, so a fork can branch at it. */
   checkpoint(providerMessageId: string): void;
