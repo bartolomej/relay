@@ -44,6 +44,8 @@ export type FromWebview =
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }
   | { type: "fork"; sessionId: string; messageId?: string }
+  /** Opens a subsession with the other provider, its first message drafted for the user to send. */
+  | { type: "secondOpinion"; sessionId: string }
   | { type: "stop"; sessionId: string }
   | { type: "approve"; sessionId: string; decision: ApprovalDecision }
   /** Without answers the agent asks in a message instead. */

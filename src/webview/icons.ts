@@ -24,5 +24,6 @@ export const icons = {
   worktree: wrap('<circle cx="4.5" cy="3" r="1.5"/><circle cx="4.5" cy="13" r="1.5"/><circle cx="11.5" cy="8" r="1.5"/><path d="M4.5 4.5v7M4.5 4.5c0 2.2 7 1.3 7 2M11.5 9.5c0 .7-7-.2-7 2"/>'),
   globe: wrap('<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c-2.2 2.2-2.2 8.8 0 11M8 2.5c2.2 2.2 2.2 8.8 0 11"/>'),
   phone: wrap('<rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12h2"/>'),
+  opinion: wrap('<path d="M2.5 3h11v7.5H8L5 13v-2.5H2.5z"/><path d="M5.5 6.8l1.7 1.7 3.3-3.3"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };

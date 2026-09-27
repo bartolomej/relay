@@ -31,6 +31,11 @@ export interface SessionsApi {
   sendMessage(sessionId: string, text: string, options?: Partial<SessionOptions>, delivery?: Delivery, mode?: MessageMode): Promise<void>;
   removeQueued(sessionId: string, queuedId: string): Promise<void>;
   forkSession(sessionId: string, fromMessageId?: string): Promise<Session>;
+  /**
+   * A new conversation nested under the parent, working in the same folder or
+   * worktree, e.g. another provider giving a second opinion. Starts empty.
+   */
+  createSubsession(parentId: string, options: SessionOptions, title: string): Promise<Session>;
   stopSession(sessionId: string): Promise<void>;
   respondToApproval(sessionId: string, decision: ApprovalDecision): Promise<void>;
   /** Without answers the agent is told to ask in plain text instead. */

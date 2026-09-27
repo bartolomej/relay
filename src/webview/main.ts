@@ -1,6 +1,7 @@
 import { minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
+import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
 import { renderSessions } from "./sessions";
 import { renderUsage, usageOpen } from "./usage";
@@ -27,7 +28,7 @@ const app = document.getElementById("app") as HTMLDivElement;
 function buildShell(layout: UiState["layout"]): void {
   app.innerHTML =
     layout === "wide"
-      ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat"></div>${renderComposer()}</div>`
+      ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat" class="chat-wrap"></div>${renderComposer()}</div>`
       : `<div id="left"></div><div id="chat" class="chat-wrap"></div>${renderComposer()}`;
   bindComposerOnce(() => state);
   shellBuilt = true;
@@ -58,32 +59,29 @@ function render(): void {
     followedSessionId = state.selectedSessionId;
     followOutput = true;
   }
-  const prevScroll = messages ? messages.scrollTop : 0;
-  const active = document.activeElement as HTMLInputElement | null;
-  const typing = active && active.classList.contains("question-other") ? { qid: active.dataset.qid, at: active.selectionStart } : undefined;
 
-  chat.outerHTML = `<div id="chat" class="chat-wrap">${html}</div>`;
+  // Patched in place rather than replaced: a new scroll box would cut off the
+  // momentum of a scroll that is still going.
+  const next = document.createElement("template");
+  next.innerHTML = html;
+  morphChildren(chat, next.content);
   chatHtml = html;
-  restoreTyped(typing);
+  restoreTyped();
 
-  const nextMessages = document.getElementById("messages");
-  if (nextMessages) {
-    nextMessages.scrollTop = followOutput ? nextMessages.scrollHeight : prevScroll;
-    lastScrollTop = nextMessages.scrollTop;
+  const box = document.getElementById("messages");
+  if (box) {
+    if (followOutput) box.scrollTop = box.scrollHeight;
+    lastScrollTop = box.scrollTop;
   }
   updatePinned();
 }
 
-/** Puts typed answers back after a redraw, and the cursor where it was. */
-function restoreTyped(typing: { qid?: string; at: number | null } | undefined): void {
+/** Puts typed answers into answer boxes the redraw created; boxes that stayed keep their cursor. */
+function restoreTyped(): void {
   document.querySelectorAll<HTMLInputElement>("#chat .question-other").forEach((input) => {
     const typed = local.typed[input.dataset.id || ""];
-    input.value = (typed && typed[input.dataset.qid || ""]) || "";
-    if (typing && typing.qid === input.dataset.qid) {
-      input.focus();
-      const at = typing.at === null ? input.value.length : typing.at;
-      input.setSelectionRange(at, at);
-    }
+    const value = (typed && typed[input.dataset.qid || ""]) || "";
+    if (input.value !== value) input.value = value;
   });
 }
 
@@ -201,6 +199,9 @@ app.addEventListener("click", (e) => {
     case "fork":
       e.stopPropagation();
       post({ type: "fork", sessionId: id });
+      break;
+    case "secondOpinion":
+      post({ type: "secondOpinion", sessionId: id });
       break;
     case "forkAt":
       post({ type: "fork", sessionId: id, messageId: mid });

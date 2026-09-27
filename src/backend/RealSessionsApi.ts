@@ -194,6 +194,32 @@ export class RealSessionsApi implements SessionsApi {
     return fork;
   }
 
+  async createSubsession(parentId: string, options: SessionOptions, title: string): Promise<Session> {
+    const parent = this.store.sessions.get(parentId);
+    if (!parent) throw new Error(`No session ${parentId}`);
+    const now = Date.now();
+    const child: Session = {
+      id: nextId("s"),
+      title,
+      status: "done",
+      options,
+      cwd: parent.cwd,
+      folder: parent.folder,
+      createdAt: now,
+      lastActivityAt: now,
+      unread: false,
+      archived: false,
+      queued: [],
+      transcriptPath: "",
+      parentId: parent.id,
+      useWorktree: parent.useWorktree,
+      worktree: parent.worktree,
+    };
+    this.store.put(child);
+    this.emit();
+    return child;
+  }
+
   async stopSession(sessionId: string): Promise<void> {
     const session = this.store.sessions.get(sessionId);
     if (!session || !isActive(session)) return;

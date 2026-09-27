@@ -28,6 +28,8 @@ Switch it to **Ask** when you only want an answer. The agent can read and search
 
 **Fork** any session, either from its latest message or from any earlier message in the chat. Forks nest under their parent, and a family of sessions moves between groups together. Each session gets a short title, rewritten after every message by a small Codex model, and hovering a card shows the full title.
 
+**Second opinion.** The speech-bubble button in the chat header opens a subsession with the other provider (Codex for a Claude session, Claude for a Codex one) and drafts a review request in the message box: what the agent was asked, what it said at the end, the files it changed, and where to find the diff. The other provider can't read the conversation, so that's all it gets. Edit the draft if you like and press ↵ to send it. The subsession works in the same folder or worktree and nests under the session it reviews. The button shows once the session has replied and isn't working.
+
 Relay works in the sidebar, or in an editor tab with two columns (**Relay: Open as Editor Tab**, or the icon in the view title).
 
 ### Plan usage and context
