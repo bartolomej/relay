@@ -48,16 +48,17 @@ function summary(state: UiState): string {
     .join("");
 }
 
-export function usageOpen(state: UiState): boolean {
-  return local.usageOpen !== undefined ? local.usageOpen : state.layout === "wide";
+/** Collapsed until the user opens it. */
+export function usageOpen(): boolean {
+  return local.usageOpen === true;
 }
 
 export function renderUsage(state: UiState): string {
   if (!state.usage.length) return "";
-  const open = usageOpen(state);
+  const open = usageOpen();
   return `<div class="usage">
     <button class="usage-head ${open ? "open" : ""}" data-action="toggleUsage" aria-expanded="${open}">
-      ${icons.chevron}<span>Usage</span>${open ? "" : summary(state)}
+      ${icons.chevron}<span>Status</span>${open ? "" : summary(state)}
     </button>
     ${open ? state.usage.map((u) => provider(state, u)).join("") : ""}
   </div>`;

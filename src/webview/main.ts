@@ -171,7 +171,7 @@ app.addEventListener("click", (e) => {
       post({ type: "complete", sessionId: id });
       break;
     case "toggleUsage":
-      local.usageOpen = !usageOpen(state);
+      local.usageOpen = !usageOpen();
       render();
       break;
     case "toggleAllPast":

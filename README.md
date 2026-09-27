@@ -18,7 +18,7 @@ Switch it to **Ask** when you only want an answer. The agent can read and search
 
 ### Sessions sorted by what needs you
 
-![The sidebar: usage at the top, then sessions grouped by state](img/sidebar%20ui.png)
+![The sidebar: status at the top, then sessions grouped by state](img/sidebar%20ui.png)
 
 - **Working**: running (spinner) or waiting for your approval (amber, with Allow, Deny and "Always for this session" right on the card).
 - **Ready to review**: finished since you last looked, marked with a dot. It stays here while you read it and moves to **Past** when you click away.
@@ -32,12 +32,12 @@ Relay works in the sidebar, or in an editor tab with two columns (**Relay: Open 
 
 ### Plan usage and context
 
-The top of the list shows every limit each provider reports, with percent used and time until reset:
+The **Status** panel at the top of the list shows every limit each provider reports, with percent used and time until reset:
 
 - **Claude:** the 5-hour session, the weekly limit for all models, weekly limits per model (such as Fable or Sonnet), and extra usage.
 - **Codex:** 5-hour and weekly limits, extra metered buckets, credits, and available limit resets.
 
-Bars turn amber at 75% and red at 90%. In the sidebar the panel collapses to one line showing each provider's fullest window. The chat header shows how full the open session's context window is.
+Bars turn amber at 75% and red at 90%. It starts collapsed to one line showing each provider's fullest window; click it to expand. The chat header shows how full the open session's context window is.
 
 ### Sending messages
 
