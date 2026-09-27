@@ -120,7 +120,7 @@ Click the window-and-pointer icon in the chat header (it works before a new sess
 - **How.** Relay gives the agent [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) (`npx chrome-devtools-mcp@latest`, with usage statistics off), connected to Relay's browser instead of a browser of its own. It's named `relay_browser`, and Claude is told to use it rather than any other browser tools you've set up. Needs Node.js for `npx`.
 - **When.** The browser opens when the agent starts working, on the address you last opened, or a blank tab. Chrome can only accept agents if it was started for them, so if Relay's browser is already open without agent access, it restarts once and reopens its tabs.
 - **No prompts for its tools.** Turning the toggle on is your approval, so Claude uses the browser tools without asking each time. Ask mode never gets the browser.
-- **Security.** While agent access is on, Chrome also listens on a random DevTools port on `127.0.0.1`. Web pages can't reach it, but other programs on your Mac could, until you close Relay's browser. Turning the toggle off stops the agent getting the browser from its next turn; the port stays open until the browser closes.
+- **Security.** While agent access is on, Chrome also listens on a random DevTools port on `127.0.0.1`. Web pages can't use it (Chrome refuses DevTools connections from them), but other programs on your Mac could, until you close Relay's browser. Turning the toggle off stops the agent getting the browser from its next turn; the port stays open until the browser closes.
 - Forks keep the setting; each session has its own.
 
 ### Remote access from your phone
