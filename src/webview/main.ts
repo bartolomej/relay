@@ -207,6 +207,19 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
   }
 });
 
+/**
+ * Coming back to VS Code from another app focuses the view again but not the
+ * box that was being typed in, so that box takes the focus back.
+ */
+let typingIn: HTMLElement | undefined;
+window.addEventListener("blur", () => {
+  const active = document.activeElement;
+  typingIn = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement ? active : undefined;
+});
+window.addEventListener("focus", () => {
+  if (typingIn && typingIn.isConnected && document.activeElement !== typingIn) typingIn.focus();
+});
+
 // Ticks the clocks on cards between state pushes.
 setInterval(() => {
   if (!state) return;
