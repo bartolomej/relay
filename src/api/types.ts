@@ -22,7 +22,7 @@ export interface ProviderInfo {
 
 export interface ModelInfo {
   id: string;
-  /** Versioned name, e.g. "Opus 5.5 with 1M context". */
+  /** Versioned name, e.g. "Opus 5.5". */
   label: string;
   /** Longer text and the exact model it resolves to, for a tooltip. */
   description?: string;
