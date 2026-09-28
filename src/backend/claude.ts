@@ -322,17 +322,17 @@ function toModel(m: Sdk.ModelInfo): ModelInfo {
 /**
  * The catalogue's displayName is often just "Opus". Its description starts
  * with the versioned name ("Opus 5.5 with 1M context · Best for …"), so use
- * that without the context size ("Opus 5.5"), else build one from the resolved
- * id ("claude-haiku-4-5-20251001" → "Haiku 4.5"). The tooltip keeps the full text.
+ * that with the context size shortened ("Opus 5.5 1M"), else build one from the
+ * resolved id ("claude-haiku-4-5-20251001" → "Haiku 4.5"). The tooltip keeps the full text.
  */
 function versionedName(m: Sdk.ModelInfo): string {
-  const head = m.description ? m.description.split(" · ")[0].replace(/ with \S+ context$/i, "").trim() : "";
+  const head = m.description ? m.description.split(" · ")[0].replace(/ with (\S+) context$/i, " $1").trim() : "";
   if (head && /\d/.test(head)) return head;
   const id = m.resolvedModel || m.value;
-  const match = /^claude-([a-z]+)-([\d-]+?)(?:-\d{8})?(?:\[1m\])?$/.exec(id);
+  const match = /^claude-([a-z]+)-([\d-]+?)(?:-\d{8})?(\[1m\])?$/.exec(id);
   if (!match) return m.displayName;
   const family = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-  return `${family} ${match[2].replace(/-/g, ".")}`;
+  return `${family} ${match[2].replace(/-/g, ".")}${match[3] ? " 1M" : ""}`;
 }
 
 function toUsage(u: Sdk.SDKControlGetUsageResponse): ProviderUsage {
