@@ -38,6 +38,11 @@ function latestActivity(n: Node): number {
   return Math.max(...members(n).map((s) => Math.max(s.lastActivityAt, s.seenAt || 0)));
 }
 
+/** When the tree started its current run, so working cards keep their order while they work. */
+function runStart(n: Node): number {
+  return Math.min(...members(n).filter(isActive).map((s) => s.runStartedAt || s.createdAt));
+}
+
 function groupOf(n: Node): Group {
   const all = members(n);
   if (all.some(isActive)) return "working";
@@ -172,8 +177,7 @@ export function renderSessions(state: UiState): string {
     else older.push(root);
   }
   const byLatest = (a: Node, b: Node) => latestActivity(b) - latestActivity(a);
-  const waitingFirst = (n: Node) => (members(n).some((s) => s.status === "waiting") ? 0 : 1);
-  working.sort((a, b) => waitingFirst(a) - waitingFirst(b) || byLatest(a, b));
+  working.sort((a, b) => runStart(b) - runStart(a));
   review.sort(byLatest);
   const past = (state.showAllPast ? recent.concat(older) : recent).sort(byLatest);
 
