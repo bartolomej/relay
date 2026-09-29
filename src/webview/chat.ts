@@ -31,7 +31,7 @@ function tool(t: ToolEvent, openable: boolean): string {
   const target = t.path && openable
     ? `<a class="target mono ellipsis file-link" data-action="openFile" data-path="${esc(t.path)}" title="Open ${esc(t.target)}">${esc(t.target)}</a>`
     : `<span class="target mono ellipsis">${esc(t.target)}</span>`;
-  return `<div class="tool">${toolIcon(t.kind)}<span>${esc(t.label)}</span>${target}${diff}</div>`;
+  return `<div class="tool">${toolIcon(t.kind)}<span class="label ellipsis">${esc(t.label)}</span>${target}${diff}</div>`;
 }
 
 /** The latest user message is pinned so the reply below it keeps its question in view while scrolling. */
