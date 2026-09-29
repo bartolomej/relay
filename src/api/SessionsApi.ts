@@ -1,4 +1,4 @@
-import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionOptions } from "./types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, Session, SessionInspect, SessionOptions } from "./types";
 
 export type Unsubscribe = () => void;
 
@@ -19,6 +19,8 @@ export interface SessionsApi {
 
   listSessions(): Promise<Session[]>;
   getMessages(sessionId: string): Promise<Message[]>;
+  /** How the session was set up and how it ran, for the inspector. Undefined until a Claude turn reports it. */
+  getInspect(sessionId: string): Promise<SessionInspect | undefined>;
 
   /**
    * With `useWorktree`, the agent works in a git worktree created on the first

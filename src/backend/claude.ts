@@ -2,7 +2,7 @@ import * as os from "os";
 import * as path from "path";
 import type * as Sdk from "@anthropic-ai/claude-agent-sdk";
 import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import { capDiff, type Effort, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type TokenTotals, type ToolEvent, type UsageWindow } from "../api/types";
+import { capDiff, durationLabel, type Effort, type InspectContext, type InspectEvent, type InspectSetup, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type TokenTotals, type ToolEvent, type UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 import { BROWSER_MCP, BROWSER_PROMPT, browserMcp } from "./browserMcp";
@@ -167,6 +167,7 @@ export class ClaudeAdapter implements ProviderAdapter {
     const browser: Partial<Sdk.Options> = target.browserUrl
       ? { mcpServers: { [BROWSER_MCP]: { type: "stdio", ...browserMcp(target.browserUrl) } }, allowedTools: [`mcp__${BROWSER_MCP}`] }
       : {};
+    sink.inspect({ event: { at: Date.now(), kind: "turn", text: `Sent: ${str(text, 160)}` } });
     const q = sdk.query({
       prompt: input(),
       options: {
@@ -177,6 +178,7 @@ export class ClaudeAdapter implements ProviderAdapter {
         systemPrompt: { type: "preset", preset: "claude_code", ...(target.browserUrl ? { append: BROWSER_PROMPT } : {}) },
         ...browser,
         includePartialMessages: true,
+        includeHookEvents: true,
         pathToClaudeCodeExecutable: this.executable(),
         canUseTool: (name, toolInput, opts) => this.ask(sink, target.cwd, name, toolInput, opts.suggestions),
         ...(target.readOnly ? READ_ONLY : {}),
@@ -189,11 +191,37 @@ export class ClaudeAdapter implements ProviderAdapter {
       const streamed = new Set<string>();
       // Per stream (the main loop, each subagent): usage of the message in flight so far.
       const counted = new Map<string, RawUsage>();
+      // Subagents by the id of the Task call that started them, for the inspector.
+      const agents = new Map<string, string>();
+      const event = (kind: InspectEvent["kind"], text: string, detail?: string) => sink.inspect({ event: { at: Date.now(), kind, text, detail } });
       let wroteText = false;
       for await (const m of q) {
         switch (m.type) {
           case "system":
-            if (m.subtype === "init") sink.providerSessionId(m.session_id);
+            if (m.subtype === "init") {
+              sink.providerSessionId(m.session_id);
+              sink.inspect({ setup: toSetup(m) });
+            } else if (m.subtype === "compact_boundary") {
+              const c = m.compact_metadata;
+              const after = c.post_tokens !== undefined ? ` to ${c.post_tokens.toLocaleString()}` : "";
+              event("compact", `Compacted (${c.trigger}) from ${c.pre_tokens.toLocaleString()}${after} tokens`);
+            } else if (m.subtype === "api_retry") {
+              const why = m.error_status !== null ? `HTTP ${m.error_status}` : "no response";
+              event("retry", `API retry ${m.attempt} of ${m.max_retries} after ${why}, waiting ${durationLabel(m.retry_delay_ms)}`);
+            } else if (m.subtype === "hook_response") {
+              // Hooks run on every prompt and tool call; only the ones with something to say are worth a row.
+              const out = [m.stderr, m.stdout, m.output].find((x) => x && x.trim());
+              if (out || m.outcome !== "success") event("hook", `Hook ${m.hook_name}: ${m.outcome}`, out ? str(out, 400) : undefined);
+            } else if (m.subtype === "permission_denied") {
+              event("denied", `Denied ${m.tool_name} without asking`, m.decision_reason || m.message);
+            } else if (m.subtype === "memory_recall") {
+              event("memory", `Recalled ${m.memories.length} ${m.memories.length === 1 ? "memory" : "memories"}`, m.memories.map((x) => x.path).join("\n"));
+            } else if (m.subtype === "task_notification") {
+              const name = (m.tool_use_id && agents.get(m.tool_use_id)) || "Subagent";
+              const u = m.usage;
+              const stats = u ? `: ${u.tool_uses} tool calls, ${u.total_tokens.toLocaleString()} tokens, ${durationLabel(u.duration_ms)}` : "";
+              event("subagent", `${name} ${m.status}${stats}`, m.summary ? str(m.summary, 400) : undefined);
+            }
             break;
           case "stream_event": {
             const e = m.event;
@@ -215,7 +243,15 @@ export class ClaudeAdapter implements ProviderAdapter {
             }
             break;
           }
-          case "assistant":
+          case "assistant": {
+            // Every call goes to the inspector, a subagent's too; only the main agent's show in the chat.
+            const agent = m.parent_tool_use_id ? agents.get(m.parent_tool_use_id) || "Subagent" : undefined;
+            for (const block of m.message.content) {
+              if (block.type !== "tool_use") continue;
+              const toolInput = block.input as Record<string, unknown>;
+              sink.inspect({ tool: { ...toolRow(block.id, block.name, toolInput, target.cwd), name: block.name, agent, startedAt: Date.now() } });
+              if (block.name === "Task" || block.name === "Agent") agents.set(block.id, str(toolInput.description || toolInput.subagent_type) || "Subagent");
+            }
             if (m.parent_tool_use_id) break;
             for (const block of m.message.content) {
               if (block.type === "text" && !streamed.has(m.message.id)) {
@@ -228,22 +264,51 @@ export class ClaudeAdapter implements ProviderAdapter {
             }
             sink.checkpoint(m.uuid);
             break;
+          }
           case "user": {
-            if (m.parent_tool_use_id || typeof m.message.content === "string") break;
+            if (typeof m.message.content === "string") break;
             for (const block of m.message.content) {
-              if (block.type === "tool_result") sink.tool({ id: block.tool_use_id, ...toolResult(!!block.is_error, m.tool_use_result) } as ToolEvent);
+              if (block.type !== "tool_result") continue;
+              sink.inspect({ tool: { id: block.tool_use_id, endedAt: Date.now(), ok: !block.is_error, resultTokens: approxTokens(block.content) } });
+              if (!m.parent_tool_use_id) sink.tool({ id: block.tool_use_id, ...toolResult(!!block.is_error, m.tool_use_result) } as ToolEvent);
             }
             break;
           }
-          case "rate_limit_event":
+          case "rate_limit_event": {
             this.snapshot = undefined;
             for (const l of this.listeners) l();
+            const r = m.rate_limit_info;
+            if (r.status !== "allowed") {
+              // A fraction, 0.8 for 80%.
+              const pct = r.utilization !== undefined ? ` at ${Math.round(r.utilization * 100)}%` : "";
+              event("limit", `${r.status === "rejected" ? "Hit" : "Close to"} the ${(r.rateLimitType || "plan").replace(/_/g, " ")} limit${pct}`);
+            }
             break;
+          }
           case "result":
             result = m.subtype === "success" && !m.is_error ? { ok: true } : { ok: false, error: resultError(m) };
+            sink.inspect({
+              turn: {
+                roundTrips: m.num_turns,
+                durationMs: m.duration_ms,
+                apiDurationMs: m.duration_api_ms,
+                costUsd: m.total_cost_usd,
+                models: Object.entries(m.modelUsage).map(([model, u]) => ({
+                  model,
+                  input: u.inputTokens,
+                  output: u.outputTokens,
+                  cacheRead: u.cacheReadInputTokens,
+                  cacheWrite: u.cacheCreationInputTokens,
+                  costUsd: u.costUSD,
+                })),
+              },
+            });
+            if (result.ok) event("turn", `Turn done: ${m.num_turns} ${m.num_turns === 1 ? "request" : "requests"} in ${durationLabel(m.duration_ms)}`);
+            else event("error", "Turn failed", result.error);
             try {
               const ctx = await q.getContextUsage();
               sink.context({ usedTokens: ctx.totalTokens, limitTokens: ctx.maxTokens });
+              sink.inspect({ context: toContext(ctx) });
             } catch {
               // Context is a nice-to-have; a turn still counts without it.
             }
@@ -292,13 +357,18 @@ export class ClaudeAdapter implements ProviderAdapter {
   ): Promise<Sdk.PermissionResult> {
     if (name === "AskUserQuestion") {
       const answers = await sink.questions(toQuestions(input));
+      const count = Object.keys(answers || {}).length;
+      sink.inspect({ event: { at: Date.now(), kind: "approval", text: answers ? `You answered ${count} ${count === 1 ? "question" : "questions"}` : "You chose to answer in a message" } });
       if (!answers) return { behavior: "deny", message: "The user would rather answer in a message. Ask your questions in plain text instead." };
       // Keyed by question text; several picks are comma-separated.
       const byQuestion: Record<string, string> = {};
       for (const [question, picked] of Object.entries(answers)) byQuestion[question] = picked.join(", ");
       return { behavior: "allow", updatedInput: { ...input, answers: byQuestion } };
     }
-    const decision = await sink.approval(approvalFor(name, input, cwd));
+    const request = approvalFor(name, input, cwd);
+    const decision = await sink.approval(request);
+    const verb = decision === "deny" ? "You denied" : decision === "always" ? "You always allowed" : "You allowed";
+    sink.inspect({ event: { at: Date.now(), kind: "approval", text: `${verb} ${name}`, detail: str(request.detail, 400) } });
     if (decision === "deny") return { behavior: "deny", message: "The user declined this." };
     return { behavior: "allow", updatedInput: input, ...(decision === "always" && suggestions ? { updatedPermissions: suggestions } : {}) };
   }
@@ -330,6 +400,46 @@ function totals(u: RawUsage | undefined): TokenTotals {
   if (!u) return { input: 0, cachedInput: 0, output: 0 };
   const cached = u.cache_read_input_tokens || 0;
   return { input: (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + cached, cachedInput: cached, output: u.output_tokens || 0 };
+}
+
+function toSetup(m: Sdk.SDKSystemMessage): InspectSetup {
+  return {
+    model: m.model,
+    version: m.claude_code_version,
+    permissionMode: m.permissionMode,
+    outputStyle: m.output_style,
+    tools: m.tools,
+    mcpServers: m.mcp_servers.map((s) => ({ name: s.name, status: s.status })),
+    skills: m.skills,
+    agents: m.agents || [],
+    plugins: m.plugins.map((p) => (p.version ? `${p.name} ${p.version}` : p.name)),
+  };
+}
+
+function toContext(c: Sdk.SDKControlGetContextUsageResponse): InspectContext {
+  return {
+    usedTokens: c.totalTokens,
+    limitTokens: c.maxTokens,
+    autoCompactAt: c.isAutoCompactEnabled ? c.autoCompactThreshold : undefined,
+    categories: c.categories.filter((x) => x.tokens > 0).map((x) => ({ name: x.name, tokens: x.tokens, kind: x.kind })),
+    memoryFiles: c.memoryFiles.map((f) => ({ path: f.path, type: f.type, tokens: f.tokens })),
+    skills: c.skills ? c.skills.skillFrontmatter.map((s) => ({ name: s.name, source: s.source, tokens: s.tokens })) : [],
+    agents: c.agents.map((a) => ({ name: a.agentType, source: a.source, tokens: a.tokens })),
+    mcpTools: c.mcpTools.map((t) => ({ name: t.name, server: t.serverName, tokens: t.tokens })),
+    toolTokens: c.messageBreakdown
+      ? c.messageBreakdown.toolCallsByType.map((t) => ({ name: t.name, tokens: t.callTokens + t.resultTokens })).sort((a, b) => b.tokens - a.tokens)
+      : [],
+  };
+}
+
+/** What a tool returned, at roughly 4 characters a token; images aren't counted. */
+function approxTokens(content: unknown): number | undefined {
+  let chars = 0;
+  if (typeof content === "string") chars = content.length;
+  else if (Array.isArray(content)) {
+    for (const part of content as Array<{ type?: string; text?: unknown }>) if (part.type === "text" && typeof part.text === "string") chars += part.text.length;
+  } else return undefined;
+  return Math.ceil(chars / 4);
 }
 
 /** AskUserQuestion's input; answers go back keyed by the question text. */

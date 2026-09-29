@@ -257,6 +257,92 @@ export interface Message {
 
 export type ApprovalDecision = "allow" | "deny" | "always";
 
+/** What the inspector shows about a Claude session: how it was set up and how it ran. */
+export interface SessionInspect {
+  /** How Claude Code started the latest turn. */
+  setup?: InspectSetup;
+  /** What filled the context window after the latest turn. */
+  context?: InspectContext;
+  stats?: InspectStats;
+  /** Every tool call, subagents' included, oldest first. */
+  tools: InspectTool[];
+  events: InspectEvent[];
+}
+
+export interface InspectSetup {
+  model: string;
+  version: string;
+  permissionMode: string;
+  outputStyle: string;
+  tools: string[];
+  mcpServers: Array<{ name: string; status: string }>;
+  skills: string[];
+  agents: string[];
+  plugins: string[];
+}
+
+export interface InspectContext {
+  usedTokens: number;
+  limitTokens: number;
+  /** Compaction starts once the context reaches this many tokens. */
+  autoCompactAt?: number;
+  /** What fills the window: system prompt, tools, memory files, messages, free space and so on. */
+  categories: Array<{ name: string; tokens: number; kind: "used" | "free" | "buffer" | "deferred" }>;
+  /** CLAUDE.md and other memory files, by path. */
+  memoryFiles: Array<{ path: string; type: string; tokens: number }>;
+  skills: Array<{ name: string; source: string; tokens: number }>;
+  agents: Array<{ name: string; source: string; tokens: number }>;
+  mcpTools: Array<{ name: string; server: string; tokens: number }>;
+  /** Tokens tool calls and their results take up in the conversation, per tool. */
+  toolTokens: Array<{ name: string; tokens: number }>;
+}
+
+/** Summed over the session's turns, except cost and models: Claude Code keeps those as running totals. */
+export interface InspectStats {
+  turns: number;
+  /** Requests to the model; one turn makes a request per round of tool calls. */
+  roundTrips: number;
+  durationMs: number;
+  apiDurationMs: number;
+  costUsd: number;
+  models: Array<{ model: string; input: number; output: number; cacheRead: number; cacheWrite: number; costUsd: number }>;
+}
+
+export interface InspectTool {
+  id: string;
+  /** The tool's own name, e.g. Read or mcp__relay_browser__click. */
+  name: string;
+  kind: ToolEvent["kind"];
+  label: string;
+  target: string;
+  path?: string;
+  /** The subagent that made the call; unset for the main agent. */
+  agent?: string;
+  startedAt: number;
+  endedAt?: number;
+  ok?: boolean;
+  /** Rough size of what the tool returned, at 4 characters a token. */
+  resultTokens?: number;
+}
+
+export interface InspectEvent {
+  at: number;
+  kind: "turn" | "compact" | "retry" | "hook" | "denied" | "approval" | "memory" | "subagent" | "limit" | "error";
+  text: string;
+  detail?: string;
+}
+
+/** One change to a session's inspector data, as an adapter reports it. */
+export interface InspectUpdate {
+  setup?: InspectSetup;
+  context?: InspectContext;
+  /** A finished turn; its numbers are added to the stats. */
+  turn?: { roundTrips: number; durationMs: number; apiDurationMs: number; costUsd: number; models: InspectStats["models"] };
+  /** Adds a tool call, or fills in the one with the same id. */
+  tool?: Partial<InspectTool> & { id: string };
+  event?: InspectEvent;
+}
+
 /** The folder the agent works in. */
 export function workDir(s: Session): string {
   return s.worktree ? s.worktree.cwd : s.cwd;
@@ -264,6 +350,16 @@ export function workDir(s: Session): string {
 
 export function isActive(s: Session): boolean {
   return s.status === "running" || s.status === "waiting";
+}
+
+/** "0.4s", "45s", "2m 14s", "1h 3m" for how long something took. */
+export function durationLabel(ms: number): string {
+  if (ms < 10_000) return `${Math.round(ms / 100) / 10}s`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 /** "45m", "2h", "1h 30m" for a time limit. */

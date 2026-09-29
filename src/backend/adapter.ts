@@ -2,6 +2,7 @@ import type {
   Answers,
   ApprovalDecision,
   ContextUsage,
+  InspectUpdate,
   PendingApproval,
   ProviderId,
   ProviderInfo,
@@ -44,6 +45,8 @@ export interface TurnSink {
   tokens(delta: Partial<TokenTotals>): void;
   /** Provider id of the latest assistant message, so a fork can branch at it. */
   checkpoint(providerMessageId: string): void;
+  /** What the inspector shows: setup, context breakdown, every tool call, notable events. */
+  inspect(update: InspectUpdate): void;
 }
 
 export interface TurnResult {

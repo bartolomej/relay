@@ -1,4 +1,4 @@
-import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionOptions, TaskInput } from "../api/types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionInspect, SessionOptions, TaskInput } from "../api/types";
 
 export type Layout = "sidebar" | "wide";
 
@@ -30,6 +30,10 @@ export interface UiState {
   showScheduled: boolean;
   /** Task open in the form; undefined is a new one. */
   selectedTaskId?: string;
+  /** The inspector takes the chat's place for the open session. */
+  inspecting: boolean;
+  /** The open session's inspector data, sent only while the inspector is up. */
+  inspect?: SessionInspect;
   now: number;
 }
 
@@ -60,6 +64,8 @@ export type FromWebview =
   /** `browser` lets a new session's agent drive Relay's browser from its first turn. */
   | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; browser?: boolean; mode?: MessageMode }
   | { type: "toggleBrowserAccess"; sessionId: string }
+  /** Swaps the chat for the session inspector, or back. */
+  | { type: "toggleInspect" }
   | { type: "removeQueued"; sessionId: string; queuedId: string }
   | { type: "sendQueuedNow"; sessionId: string; queuedId: string }
   | { type: "fork"; sessionId: string; messageId?: string }

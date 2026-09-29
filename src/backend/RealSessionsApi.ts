@@ -12,6 +12,7 @@ import {
   type ProviderInfo,
   type ProviderUsage,
   type Session,
+  type SessionInspect,
   type SessionOptions,
   type Worktree,
 } from "../api/types";
@@ -23,6 +24,9 @@ import { createWorktree, mergeWorktree } from "./worktree";
 const MODELS_REFRESH_MS = 30 * 60 * 1000;
 const USAGE_REFRESH_MS = 5 * 60 * 1000;
 const RUN_LIMIT_CHECK_MS = 1000;
+/** The inspector keeps this many tool calls and events per session, dropping the oldest. */
+const INSPECT_MAX_TOOLS = 2000;
+const INSPECT_MAX_EVENTS = 500;
 
 let counter = 0;
 function nextId(prefix: string): string {
@@ -107,6 +111,11 @@ export class RealSessionsApi implements SessionsApi {
 
   async getMessages(sessionId: string): Promise<Message[]> {
     return this.store.messagesOf(sessionId).map((m) => ({ ...m, tools: m.tools ? m.tools.map((t) => ({ ...t })) : undefined }));
+  }
+
+  async getInspect(sessionId: string): Promise<SessionInspect | undefined> {
+    const i = this.store.inspects.get(sessionId);
+    return i ? { ...i, tools: i.tools.slice(), events: i.events.slice() } : undefined;
   }
 
   // -- writes --------------------------------------------------------------
@@ -197,6 +206,17 @@ export class RealSessionsApi implements SessionsApi {
         : undefined,
     };
     this.store.put(fork, kept);
+    // The inspector keeps what happened up to where the fork branches off.
+    const parentInspect = this.store.inspects.get(parent.id);
+    if (parentInspect) {
+      const dropped = parentMessages[cut + 1];
+      const before = (at: number) => !dropped || at < dropped.createdAt;
+      this.store.inspects.set(fork.id, {
+        setup: parentInspect.setup,
+        tools: parentInspect.tools.filter((t) => before(t.startedAt)),
+        events: parentInspect.events.filter((e) => before(e.at)),
+      });
+    }
     this.emit();
     return fork;
   }
@@ -420,6 +440,37 @@ export class RealSessionsApi implements SessionsApi {
         if (!live()) return;
         const target = current || [...list].reverse().find((m) => m.role === "assistant");
         if (target) target.providerMessageId = providerMessageId;
+      },
+      inspect: (update) => {
+        if (!live()) return;
+        const i = this.store.inspectOf(session.id);
+        if (update.setup) i.setup = update.setup;
+        if (update.context) i.context = update.context;
+        if (update.turn) {
+          const t = update.turn;
+          const prev = i.stats || { turns: 0, roundTrips: 0, durationMs: 0, apiDurationMs: 0, costUsd: 0, models: [] };
+          i.stats = {
+            turns: prev.turns + 1,
+            roundTrips: prev.roundTrips + t.roundTrips,
+            durationMs: prev.durationMs + t.durationMs,
+            apiDurationMs: prev.apiDurationMs + t.apiDurationMs,
+            costUsd: t.costUsd,
+            models: t.models,
+          };
+        }
+        const tool = update.tool;
+        if (tool) {
+          const k = i.tools.findIndex((t) => t.id === tool.id);
+          // Replaced rather than changed in place: a copy handed out by getInspect stays as it was.
+          if (k >= 0) i.tools[k] = { ...i.tools[k], ...tool };
+          else i.tools.push({ name: "", kind: "other", label: "", target: "", startedAt: Date.now(), ...tool });
+          if (i.tools.length > INSPECT_MAX_TOOLS) i.tools.splice(0, i.tools.length - INSPECT_MAX_TOOLS);
+        }
+        if (update.event) {
+          i.events.push(update.event);
+          if (i.events.length > INSPECT_MAX_EVENTS) i.events.splice(0, i.events.length - INSPECT_MAX_EVENTS);
+        }
+        this.emit();
       },
     };
 

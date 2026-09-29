@@ -2,7 +2,7 @@ import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "../backe
 import { RealSessionsApi } from "../backend/RealSessionsApi";
 import { SessionStore } from "../backend/store";
 import type { SessionsApi } from "./SessionsApi";
-import type { Message, ProviderId, ProviderInfo, ProviderUsage, Session } from "./types";
+import type { InspectContext, InspectSetup, Message, ProviderId, ProviderInfo, ProviderUsage, Session, SessionInspect } from "./types";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -29,6 +29,94 @@ const CATALOGUE: Record<ProviderId, ProviderInfo> = {
 
 const REPLY =
   "Looking at how sections are declared in the schema. The nested validator needs to walk each section recursively and collect unknown keys with their full path, so the error message points at the exact location.";
+
+const MOCK_SETUP: InspectSetup = {
+  model: "claude-opus-5-5",
+  version: "2.1.284",
+  permissionMode: "auto",
+  outputStyle: "default",
+  tools: ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "WebFetch", "WebSearch", "Write"],
+  mcpServers: [
+    { name: "relay_browser", status: "connected" },
+    { name: "linear", status: "needs-auth" },
+  ],
+  skills: ["dataviz", "code-review"],
+  agents: ["general-purpose", "Explore", "Plan"],
+  plugins: ["feature-dev 1.2.0"],
+};
+
+function mockContext(used: number): InspectContext {
+  const fixed = 3_100 + 11_800 + 2_400 + 1_900 + 900;
+  return {
+    usedTokens: used,
+    limitTokens: 200_000,
+    autoCompactAt: 167_000,
+    categories: [
+      { name: "System prompt", tokens: 3_100, kind: "used" },
+      { name: "System tools", tokens: 11_800, kind: "used" },
+      { name: "MCP tools", tokens: 2_400, kind: "used" },
+      { name: "Memory files", tokens: 1_900, kind: "used" },
+      { name: "Skills", tokens: 900, kind: "used" },
+      { name: "Messages", tokens: Math.max(0, used - fixed), kind: "used" },
+      { name: "Autocompact buffer", tokens: 33_000, kind: "buffer" },
+      { name: "Free space", tokens: Math.max(0, 200_000 - used - 33_000), kind: "free" },
+    ],
+    memoryFiles: [
+      { path: "~/.claude/CLAUDE.md", type: "User", tokens: 1_200 },
+      { path: "CLAUDE.md", type: "Project", tokens: 700 },
+    ],
+    skills: [
+      { name: "dataviz", source: "bundled", tokens: 520 },
+      { name: "code-review", source: "bundled", tokens: 380 },
+    ],
+    agents: [{ name: "Explore", source: "built-in", tokens: 240 }],
+    mcpTools: [
+      { name: "click", server: "relay_browser", tokens: 310 },
+      { name: "navigate_page", server: "relay_browser", tokens: 420 },
+      { name: "take_snapshot", server: "relay_browser", tokens: 1_670 },
+    ],
+    toolTokens: [
+      { name: "Read", tokens: 14_300 },
+      { name: "Bash", tokens: 3_900 },
+      { name: "Grep", tokens: 1_100 },
+    ],
+  };
+}
+
+/** A finished turn with a read, a subagent search and a test run, as the Claude adapter reports it. */
+function mockInspect(now: number): SessionInspect {
+  const at = (s: number) => now - 2 * MIN + s * 1000;
+  return {
+    setup: MOCK_SETUP,
+    context: mockContext(41_000),
+    stats: {
+      turns: 1,
+      roundTrips: 6,
+      durationMs: 74_000,
+      apiDurationMs: 51_000,
+      costUsd: 0.84,
+      models: [
+        { model: "claude-opus-5-5", input: 2_100, output: 3_400, cacheRead: 162_000, cacheWrite: 21_000, costUsd: 0.79 },
+        { model: "claude-haiku-4-5-20251001", input: 9_800, output: 600, cacheRead: 0, cacheWrite: 0, costUsd: 0.05 },
+      ],
+    },
+    tools: [
+      { id: "t1", name: "Read", kind: "read", label: "Read", target: "src/config.ts", path: `src/config.ts`, startedAt: at(4), endedAt: at(4.2), ok: true, resultTokens: 2_900 },
+      { id: "ta", name: "Agent", kind: "other", label: "Delegated", target: "Find callers of parseConfig", startedAt: at(9), endedAt: at(31), ok: true, resultTokens: 420 },
+      { id: "ta1", name: "Grep", kind: "read", label: "Searched", target: "parseConfig", agent: "Find callers of parseConfig", startedAt: at(11), endedAt: at(11.6), ok: true, resultTokens: 180 },
+      { id: "ta2", name: "Read", kind: "read", label: "Read", target: "src/env.ts", path: "src/env.ts", agent: "Find callers of parseConfig", startedAt: at(14), endedAt: at(14.1), ok: true, resultTokens: 1_300 },
+      { id: "t2", name: "Edit", kind: "edit", label: "Edited", target: "src/config.ts", path: "src/config.ts", startedAt: at(38), endedAt: at(38.3), ok: true, resultTokens: 90 },
+      { id: "t3", name: "Bash", kind: "run", label: "Ran", target: "npm test", startedAt: at(44), endedAt: at(63), ok: true, resultTokens: 1_850 },
+    ],
+    events: [
+      { at: at(0), kind: "turn", text: "Sent: Implement parseConfig() in src/config.ts. Unknown keys should throw, not warn." },
+      { at: at(0.5), kind: "hook", text: "Hook UserPromptSubmit:lint-prompt: success", detail: "Prompt mentions a file that doesn't exist: src/configs.ts" },
+      { at: at(31), kind: "subagent", text: "Find callers of parseConfig completed: 2 tool calls, 11,420 tokens, 22s" },
+      { at: at(40), kind: "retry", text: "API retry 1 of 10 after HTTP 529, waiting 1.2s" },
+      { at: at(74), kind: "turn", text: "Turn done: 6 requests in 1m 14s" },
+    ],
+  };
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -59,6 +147,17 @@ class MockAdapter implements ProviderAdapter {
     this.stopped.delete(target.sessionId);
     const stopped = () => this.stopped.has(target.sessionId);
     sink.providerSessionId(target.providerSessionId || `mock-${target.sessionId}`);
+    const claude = this.id === "claude";
+    if (claude) {
+      sink.inspect({ setup: MOCK_SETUP });
+      sink.inspect({ event: { at: Date.now(), kind: "turn", text: `Sent: ${text.split("\n")[0]}` } });
+      const id = `read-${Date.now()}`;
+      sink.inspect({ tool: { id, name: "Read", kind: "read", label: "Read", target: "README.md", path: "README.md", startedAt: Date.now() } });
+      sink.tool({ id, kind: "read", label: "Read", target: "README.md", path: "README.md" });
+      await sleep(300);
+      sink.inspect({ tool: { id, endedAt: Date.now(), ok: true, resultTokens: 2_400 } });
+      sink.tool({ id, ok: true, kind: "read", label: "Read", target: "README.md", path: "README.md" });
+    }
     if (/migrat/i.test(text)) {
       const decision = await sink.approval({ kind: "bash", summary: "wants to run a command", detail: "npm run db:migrate -- --to latest" });
       if (stopped()) return { ok: true };
@@ -103,6 +202,11 @@ class MockAdapter implements ProviderAdapter {
       for (const w of this.plan.windows) if (w.resetsAt) w.usedPercent = Math.min(100, w.usedPercent + 0.02);
     }
     sink.checkpoint(`mock-msg-${Date.now()}`);
+    if (claude) {
+      sink.inspect({ turn: { roundTrips: 2, durationMs: 9_000, apiDurationMs: 7_500, costUsd: 0.12, models: [] } });
+      sink.inspect({ event: { at: Date.now(), kind: "turn", text: "Turn done: 2 requests in 9.0s" } });
+      sink.inspect({ context: mockContext(used) });
+    }
     return { ok: true };
   }
 
@@ -195,7 +299,7 @@ function seed(store: SessionStore, cwd: string, now: number): void {
         text: "I'll add a strict parser. Reading the current file first.",
         createdAt: now - 2 * MIN + 5000,
         tools: [
-          { id: "t1", kind: "read", label: "Read", target: "src/config.ts" },
+          { id: "t1", kind: "read", label: "Read", target: "src/config.ts", path: "src/config.ts" },
           { id: "t2", kind: "edit", label: "Edited", target: "src/config.ts", added: 42, removed: 3 },
           { id: "t3", kind: "run", label: "Ran", target: "npm test", detail: "12 passed", ok: true },
         ],
@@ -208,6 +312,7 @@ function seed(store: SessionStore, cwd: string, now: number): void {
       },
     ],
   );
+  store.inspects.set(parse.id, mockInspect(now));
 
   put(
     {

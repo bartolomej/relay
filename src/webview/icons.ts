@@ -27,5 +27,6 @@ export const icons = {
   phone: wrap('<rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12h2"/>'),
   opinion: wrap('<path d="M2.5 3h11v7.5H8L5 13v-2.5H2.5z"/><path d="M5.5 6.8l1.7 1.7 3.3-3.3"/>'),
   browserAgent: wrap('<rect x="1.5" y="2.5" width="13" height="10.5" rx="1.5"/><path d="M1.5 5.5h13M7 7.5l1.3 4.3.9-1.7 1.9 1.9.8-.8-1.9-1.9 1.7-.9z"/>'),
+  bug: wrap('<path d="M6 4.3a2 2 0 014 0"/><rect x="4.5" y="4.3" width="7" height="9.2" rx="3.5"/><path d="M8 7v6.5M4.5 8.5H2M11.5 8.5H14M4.6 11.5l-2 1.2M11.4 11.5l2 1.2M4.8 6l-1.8-1.3M11.2 6l1.8-1.3"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };

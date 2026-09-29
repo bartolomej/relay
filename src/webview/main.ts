@@ -329,6 +329,11 @@ app.addEventListener("click", (e) => {
       local.worktree = !local.worktree;
       render();
       break;
+    case "toggleInspect":
+      // Back in the chat, it opens at the newest output.
+      followOutput = true;
+      post({ type: "toggleInspect" });
+      break;
     case "toggleBrowserAccess":
       if (!id) {
         local.browser = !local.browser;

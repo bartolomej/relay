@@ -61,6 +61,18 @@ Queued messages wait above the composer, each with **send now** and **remove**. 
 - Each tool call shows as a compact row: files read, commands run with their exit codes, files edited with `+added −removed` line counts.
 - Your latest message stays pinned at the top of the chat while the reply scrolls under it. Click it to expand a long one.
 
+### Inspector
+
+The bug icon in a Claude session's header swaps the chat for the inspector, on a tinted background. Click it again, or **Back to chat**, to return. Picking another session closes it. It shows what the session loaded and how it ran:
+
+- **Session:** the exact model, Claude Code version, permission mode and output style, the number of turns and model requests, time, the estimated cost at API prices, and tokens per model with how much came from the prompt cache. It also lists the MCP servers (with any that didn't connect), plugins and agents.
+- **Context:** what fills the window as a bar (system prompt, tools, memory files, messages, free space, the compaction buffer), then the CLAUDE.md and other memory files with their size, and which tools' calls and results take up the most.
+- **Files:** every file read or changed, how often, and whether a subagent did it. Click one to open it.
+- **Tool calls:** every call, subagents' included, with its time, how long it took and roughly how much its result added to the context. The slowest calls and largest results are listed first.
+- **Events:** compactions, API retries, hooks that failed or printed something, calls denied without asking, your approvals and answers, finished subagents and plan-limit warnings.
+
+It's saved with the session. Sessions from before it existed show the files and tool calls the chat recorded; the rest fills in from their next turn. Codex doesn't report this, so its sessions don't have the icon.
+
 ### Approvals
 
 Both agents run in their **auto** mode.

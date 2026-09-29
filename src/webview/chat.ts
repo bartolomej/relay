@@ -5,6 +5,7 @@ import { icons } from "./icons";
 import { ago, elapsed, esc, level, tokens } from "./util";
 import { local, selected } from "./state";
 import { renderMarkdown } from "./markdown";
+import { renderInspect } from "./inspect";
 
 function toolIcon(kind: ToolEvent["kind"]): string {
   switch (kind) {
@@ -230,6 +231,14 @@ function scheduleButton(state: UiState, s: Session): string {
   return `<button class="icon-btn" data-action="scheduleSession" data-id="${esc(s.id)}" title="${title}" aria-label="Schedule as a repeating task">${icons.calendar}</button>`;
 }
 
+/** Swaps the chat for the inspector. Only Claude reports what it loaded and how a turn went. */
+function inspectToggle(state: UiState, s: Session): string {
+  if (s.options.provider !== "claude" && !state.inspecting) return "";
+  const on = state.inspecting;
+  const title = on ? "Back to the chat" : "Inspect: files in context, CLAUDE.md and other memory files, every tool call, timings and events";
+  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleInspect" title="${esc(title)}" aria-label="Inspect this session" aria-pressed="${on}">${icons.bug}</button>`;
+}
+
 /** On: the agent can drive Relay's browser, opened for it when a turn starts. */
 function browserToggle(s: Session | undefined): string {
   const on = s ? !!s.browserAccess : local.browser;
@@ -268,6 +277,7 @@ function head(state: UiState, s: Session | undefined): string {
     <span class="title ellipsis">${esc(s.title)}</span>${sub}<span class="grow"></span>
     ${ctx}
     ${runClock(state, s)}
+    ${inspectToggle(state, s)}
     ${worktreeToggle(state, s)}
     ${browserToggle(s)}
     ${keepAwakeToggle(state)}
@@ -301,6 +311,7 @@ export function renderChat(state: UiState): string {
   const s = selected(state);
   const lastUser = state.messages.map((m) => m.role).lastIndexOf("user");
   const links = new Set(state.linkable);
+  if (s && state.inspecting) return `<div class="chat">${head(state, s)}${renderInspect(state, s)}</div>`;
   const body = !s
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0

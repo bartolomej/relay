@@ -32,6 +32,8 @@ export class PanelHost implements vscode.Disposable {
   private viewedUnread: string | undefined;
   private showAllPast = false;
   private showScheduled = false;
+  /** The inspector is up in place of the chat; picking another session closes it. */
+  private inspecting = false;
   private selectedTaskId: string | undefined;
   private disposables: vscode.Disposable[] = [];
   private pushQueued = false;
@@ -116,6 +118,7 @@ export class PanelHost implements vscode.Disposable {
   private select(id: string | undefined): void {
     if (this.viewedUnread && this.viewedUnread !== id) void this.api.markSeen(this.viewedUnread);
     if (this.viewedUnread !== id) this.viewedUnread = undefined;
+    if (this.selectedSessionId !== id) this.inspecting = false;
     this.selectedSessionId = id;
   }
 
@@ -148,6 +151,7 @@ export class PanelHost implements vscode.Disposable {
     if (this.selectedTaskId && !tasks.some((t) => t.id === this.selectedTaskId)) this.selectedTaskId = undefined;
     const messages = this.selectedSessionId ? await this.api.getMessages(this.selectedSessionId) : [];
     const linkable = selected && !this.remote ? findLinkable(messages.map((m) => m.text), workDir(selected)) : [];
+    const inspect = this.inspecting && this.selectedSessionId ? await this.api.getInspect(this.selectedSessionId) : undefined;
     const state: UiState = {
       layout: this.layout,
       providers,
@@ -165,6 +169,8 @@ export class PanelHost implements vscode.Disposable {
       tasks,
       showScheduled: this.showScheduled,
       selectedTaskId: this.selectedTaskId,
+      inspecting: this.inspecting,
+      inspect,
       now: Date.now(),
     };
     await this.post({ type: "state", state });
@@ -236,6 +242,10 @@ export class PanelHost implements vscode.Disposable {
         if (session) await this.api.setBrowserAccess(session.id, !session.browserAccess);
         return;
       }
+      case "toggleInspect":
+        this.inspecting = !this.inspecting && !!this.selectedSessionId;
+        await this.push();
+        return;
       case "sendQueuedNow": {
         const session = (await this.api.listSessions()).find((s) => s.id === m.sessionId);
         const item = session && session.queued.find((q) => q.id === m.queuedId);

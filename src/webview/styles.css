@@ -413,6 +413,77 @@ body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-l
 .send.stop { background: var(--bg-hover); color: var(--fg-strong); border: 1px solid var(--border-input); }
 .send.stop svg { width: 12px; height: 12px; }
 
+/* ---------- session inspector ---------- */
+
+/* In place of the chat, on a tinted background so it doesn't pass for the conversation. */
+.inspect {
+  flex-grow: 1; min-height: 0; overflow-y: auto; padding: 12px 14px;
+  background: color-mix(in srgb, var(--bg) 93%, var(--fg));
+  /* Context chart colours: a fixed order, validated for colour-blind separation on dark and light surfaces. */
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9;
+}
+body.vscode-light .inspect, body.vscode-high-contrast-light .inspect {
+  background: color-mix(in srgb, var(--bg) 95%, #000);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7;
+}
+.app-wide .inspect { padding: 16px 28px; }
+.inspect-inner { display: flex; flex-direction: column; gap: 10px; max-width: 900px; }
+.insp-banner { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; }
+.insp-banner svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--run); }
+.insp-banner-title { font-weight: 600; color: var(--fg-strong); flex-shrink: 0; }
+.insp-note { font-size: 11.5px; color: var(--fg-muted); }
+.insp-sec { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 10px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); min-width: 0; }
+.insp-sec .group-head .count { margin-left: auto; }
+.insp-kv { display: grid; grid-template-columns: minmax(80px, max-content) minmax(0, 1fr); gap: 3px 14px; font-size: 12px; }
+.insp-kv > span { min-width: 0; overflow-wrap: anywhere; }
+.insp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.insp-bar { display: flex; gap: 2px; height: 10px; margin-top: 2px; }
+.insp-seg { min-width: 2px; }
+.insp-seg:first-child { border-radius: 4px 0 0 4px; }
+.insp-seg:last-child { border-radius: 0 4px 4px 0; }
+.insp-s1 { background: var(--series-1); }
+.insp-s2 { background: var(--series-2); }
+.insp-s3 { background: var(--series-3); }
+.insp-s4 { background: var(--series-4); }
+.insp-s5 { background: var(--series-5); }
+.insp-s6 { background: var(--series-6); }
+.insp-s7 { background: var(--series-7); }
+.insp-other { background: var(--fg-muted); }
+.insp-free { background: var(--bg-hover); }
+.insp-buffer { background: repeating-linear-gradient(45deg, var(--fg-muted) 0 1px, transparent 1px 4px); }
+.insp-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1px 18px; font-size: 11.5px; }
+.insp-legend-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 44px 44px; align-items: center; gap: 6px; min-width: 0; }
+.insp-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+.insp-sub { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; min-width: 0; }
+.insp-sub-head { display: flex; gap: 8px; font-size: 11px; font-weight: 600; color: var(--fg); padding-bottom: 2px; }
+.insp-sub-head .muted { font-weight: 400; }
+.insp-rows { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.insp-row { display: grid; align-items: center; gap: 10px; min-height: 20px; padding: 0 4px; border-radius: 4px; font-size: 11.5px; min-width: 0; }
+.insp-row:hover { background: var(--bg-hover); }
+.insp-row > * { min-width: 0; }
+.insp-row-2 { grid-template-columns: minmax(0, 1fr) 56px; }
+.insp-row-3 { grid-template-columns: minmax(0, 1fr) minmax(0, max-content) 56px; }
+.insp-row-files { grid-template-columns: minmax(0, 1fr) minmax(0, max-content) max-content 56px; }
+.insp-row-tool { grid-template-columns: 62px minmax(0, max-content) minmax(0, 1fr) 44px 44px; }
+.insp-target { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.insp-tags { display: flex; gap: 4px; min-width: 0; }
+/* Subagents go by their task description, which can run long. */
+.insp-row .mode-tag { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-row .mode-tag, .insp-event .mode-tag { margin-right: 0; }
+.insp-event .mode-tag { flex-shrink: 0; }
+.insp-failed { color: var(--fail); flex-shrink: 0; }
+.app-sidebar .insp-row-tool { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) 40px; }
+.app-sidebar .insp-row-tool > :first-child, .app-sidebar .insp-row-tool > :last-child { display: none; }
+.insp-event { display: grid; grid-template-columns: 62px max-content minmax(0, 1fr); align-items: baseline; gap: 10px; padding: 2px 4px; font-size: 11.5px; }
+.insp-event-text { min-width: 0; overflow-wrap: anywhere; }
+.insp-detail { color: var(--fg-muted); font-family: var(--mono); font-size: 11px; white-space: pre-wrap; margin-top: 1px; }
+.app-sidebar .insp-event { grid-template-columns: max-content minmax(0, 1fr); }
+.app-sidebar .insp-event > :first-child { display: none; }
+
 /* ---------- scheduled tasks ---------- */
 
 /* The task form takes the place of the chat and composer while tasks are listed. */

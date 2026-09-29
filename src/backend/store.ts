@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import type { Message, Session } from "../api/types";
+import type { Message, Session, SessionInspect } from "../api/types";
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -16,6 +16,8 @@ interface SessionFile {
   version: 1;
   session: Session;
   messages: Message[];
+  /** What the inspector shows; only Claude sessions have it. */
+  inspect?: SessionInspect;
 }
 
 /** The earlier single-file format, kept only to import from. */
@@ -34,6 +36,7 @@ interface Snapshot {
 export class SessionStore {
   readonly sessions = new Map<string, Session>();
   readonly messages = new Map<string, Message[]>();
+  readonly inspects = new Map<string, SessionInspect>();
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** What each file last held, so unchanged sessions aren't rewritten. */
   private written = new Map<string, string>();
@@ -73,6 +76,7 @@ export class SessionStore {
         this.save();
       }
       this.add(file.session, file.messages);
+      if (file.inspect) this.inspects.set(file.session.id, file.inspect);
     }
   }
 
@@ -105,6 +109,15 @@ export class SessionStore {
     return list;
   }
 
+  inspectOf(sessionId: string): SessionInspect {
+    let inspect = this.inspects.get(sessionId);
+    if (!inspect) {
+      inspect = { tools: [], events: [] };
+      this.inspects.set(sessionId, inspect);
+    }
+    return inspect;
+  }
+
   save(): void {
     if (!this.dir || this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
@@ -117,7 +130,7 @@ export class SessionStore {
     if (!this.dir) return;
     await fs.mkdir(this.dir, { recursive: true });
     for (const session of this.sessions.values()) {
-      const file: SessionFile = { version: 1, session, messages: this.messagesOf(session.id) };
+      const file: SessionFile = { version: 1, session, messages: this.messagesOf(session.id), inspect: this.inspects.get(session.id) };
       const json = JSON.stringify(file, null, 1);
       if (this.written.get(session.id) === json) continue;
       const target = path.join(this.dir, `${session.id}.json`);
