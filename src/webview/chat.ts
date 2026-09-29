@@ -262,9 +262,11 @@ function head(state: UiState, s: Session | undefined): string {
           : `<span class="status status-done">${icons.check}</span>`;
   const p = state.providers.find((x) => x.id === s.options.provider);
   const m = p && p.models.find((x) => x.id === s.options.model);
+  // The model shows as its provider's icon; hovering it names the model.
+  const model = `${p ? p.label : s.options.provider} · ${m ? m.label : s.options.model}`;
   const sub =
     state.layout === "wide"
-      ? `${providerMark(s.options.provider, p ? p.label : s.options.provider)}<span class="muted ellipsis">${esc(m ? m.label : s.options.model)} · ${esc(s.options.effort)} · ${esc(s.folder)} · started ${esc(ago(s.createdAt, state.now))}</span>`
+      ? `${providerMark(s.options.provider, model)}<span class="muted ellipsis">${esc(s.options.effort)} · ${esc(s.folder)} · started ${esc(ago(s.createdAt, state.now))}</span>`
       : "";
   const ctx = tokenMeter(s);
   const complete = isActive(s)
