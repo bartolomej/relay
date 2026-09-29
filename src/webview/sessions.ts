@@ -143,7 +143,7 @@ function card(state: UiState, node: Node, depth: number): string {
         ${canStop ? `<button class="icon-btn sm" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop">${icons.stop}</button>` : ""}
         ${canComplete ? `<button class="icon-btn sm" data-action="complete" data-id="${esc(s.id)}" title="Complete" aria-label="Complete session">${icons.check}</button>` : ""}
       </span>
-      <span class="card-time">${esc(s.archived ? "completed" : timeCell(s, state.now))}</span>
+      <span class="card-time" ${isActive(s) ? "" : `title="${esc(`Started: ${ago(s.createdAt, state.now)} · Last active: ${ago(s.lastActivityAt, state.now)}`)}"`}>${esc(s.archived ? "completed" : timeCell(s, state.now))}</span>
     </div>
     ${approval}
     ${children}

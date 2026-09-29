@@ -2,7 +2,7 @@ import { isActive, minutesLabel, type Answers, type Message, type MessageMode, t
 import { taskName } from "../api/schedule";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
-import { ago, elapsed, esc, level, tokens } from "./util";
+import { elapsed, esc, level, tokens } from "./util";
 import { local, selected } from "./state";
 import { renderMarkdown } from "./markdown";
 import { renderInspect } from "./inspect";
@@ -266,7 +266,7 @@ function head(state: UiState, s: Session | undefined): string {
   const model = `${p ? p.label : s.options.provider} · ${m ? m.label : s.options.model}`;
   const sub =
     state.layout === "wide"
-      ? `${providerMark(s.options.provider, model)}<span class="muted ellipsis">${esc(s.options.effort)} · ${esc(s.folder)} · started ${esc(ago(s.createdAt, state.now))}</span>`
+      ? `${providerMark(s.options.provider, model)}<span class="muted ellipsis">${esc(s.options.effort)} · ${esc(s.folder)}</span>`
       : "";
   const ctx = tokenMeter(s);
   const complete = isActive(s)
