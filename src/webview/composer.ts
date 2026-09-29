@@ -106,6 +106,7 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   const browser = !state.selectedSessionId && local.browser;
   post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
   input.value = "";
+  delete local.drafts[draftFor];
   autosize(input);
   local.composerFor = undefined;
   if (!state.selectedSessionId) {
@@ -116,6 +117,20 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
     local.mode = "normal";
     refreshChips(state);
   }
+}
+
+let draftFor = "";
+
+/** Each session keeps its own unsent text: switching sessions puts the old one's away and brings back the new one's. */
+export function swapDraft(state: UiState): void {
+  const input = document.getElementById("input") as HTMLTextAreaElement | null;
+  const next = state.selectedSessionId || "";
+  if (!input || next === draftFor) return;
+  if (input.value) local.drafts[draftFor] = input.value;
+  else delete local.drafts[draftFor];
+  input.value = local.drafts[next] || "";
+  draftFor = next;
+  autosize(input);
 }
 
 /** Appends a block of text after what's already typed, a blank line between them. */

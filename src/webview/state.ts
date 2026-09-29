@@ -26,6 +26,8 @@ export const local = {
   expandedPin: undefined as string | undefined,
   composer: undefined as SessionOptions | undefined,
   composerFor: undefined as string | undefined,
+  /** Text typed but not sent, by session id ("" for a new session). */
+  drafts: {} as Record<string, string>,
   /** The next new session works in its own git worktree. Off until toggled; resets once used. */
   worktree: false,
   /** The next new session's agent may drive Relay's browser. Off until toggled; resets once used. */

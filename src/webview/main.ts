@@ -2,7 +2,7 @@ import { minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
-import { bindComposerOnce, insertText, refreshChips, renderComposer } from "./composer";
+import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft } from "./composer";
 import { remoteToggle, renderSessions } from "./sessions";
 import { loadTaskDraft, renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
@@ -77,6 +77,7 @@ function render(): void {
   if (!shellBuilt) buildShell(state.layout);
 
   renderLeft(state);
+  swapDraft(state);
   refreshChips(state);
   app.classList.toggle("show-scheduled", state.showScheduled);
   if (state.showScheduled) renderTask(state);
