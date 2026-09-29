@@ -1,6 +1,6 @@
 import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId } from "../api/types";
 import type { UiState } from "../panel/protocol";
-import { icons } from "./icons";
+import { icons, providerMark } from "./icons";
 import { composerOptions, local, post, selected } from "./state";
 import { esc } from "./util";
 
@@ -30,7 +30,7 @@ export function refreshChips(state: UiState): void {
   const model = models.find((m) => m.id === opts.model);
   const efforts: Effort[] = model ? model.efforts : [];
 
-  const providerSel = `<span class="chip-wrap has-dot"><span class="dot dot-${esc(opts.provider)}"></span>
+  const providerSel = `<span class="chip-wrap has-mark">${providerMark(opts.provider)}
     <select class="chip" id="chip-provider" aria-label="Provider">
       ${state.providers
         .map((p) => `<option value="${esc(p.id)}" ${p.id === opts.provider ? "selected" : ""} ${p.unavailable ? "disabled" : ""} title="${esc(p.unavailable || "")}">${esc(p.label)}${p.unavailable ? " (unavailable)" : ""}</option>`)

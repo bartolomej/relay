@@ -402,10 +402,8 @@ body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-l
 .chip:hover { border-color: var(--fg-muted); background-color: var(--bg-hover); }
 .chip.chip-on { border-color: var(--run-border); background-color: var(--run-bg); color: var(--run); }
 .chip-wrap { position: relative; display: inline-flex; align-items: center; }
-.chip-wrap .dot { position: absolute; left: 8px; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; }
-.chip-wrap.has-dot .chip { padding-left: 20px; }
-.dot-claude { background: var(--claude); }
-.dot-codex { background: var(--codex); }
+.chip-wrap .provider { position: absolute; left: 7px; pointer-events: none; }
+.chip-wrap.has-mark .chip { padding-left: 23px; }
 
 .send { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); display: inline-flex; align-items: center; justify-content: center; }
 .send:hover { filter: brightness(1.1); }

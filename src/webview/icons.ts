@@ -1,3 +1,5 @@
+import { esc } from "./util";
+
 // Inline stroke icons. Each returns an <svg> string that inherits currentColor.
 const wrap = (body: string, box = 16) =>
   `<svg viewBox="0 0 ${box} ${box}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -33,3 +35,9 @@ export const icons = {
   arrowDown: wrap('<path d="M6 2v8M2.8 6.8L6 10l3.2-3.2"/>', 12),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };
+
+/** The provider's mark in its colour, as on session cards; `title` names it on hover. */
+export function providerMark(provider: string, title = ""): string {
+  const icon = provider === "codex" ? icons.codex : icons.claude;
+  return `<span class="provider provider-${esc(provider)}"${title ? ` title="${esc(title)}"` : ""}>${icon}</span>`;
+}

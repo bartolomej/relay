@@ -1,6 +1,6 @@
 import { isActive, type Session } from "../api/types";
 import type { UiState } from "../panel/protocol";
-import { icons } from "./icons";
+import { icons, providerMark } from "./icons";
 import { scheduledToggle } from "./tasks";
 import { ago, elapsed, esc } from "./util";
 
@@ -90,8 +90,7 @@ function providerLabel(state: UiState, s: Session): string {
 }
 
 function providerIcon(state: UiState, s: Session): string {
-  const icon = s.options.provider === "codex" ? icons.codex : icons.claude;
-  return `<span class="provider provider-${esc(s.options.provider)}" title="${esc(providerLabel(state, s))}">${icon}</span>`;
+  return providerMark(s.options.provider, providerLabel(state, s));
 }
 
 function timeCell(s: Session, now: number): string {

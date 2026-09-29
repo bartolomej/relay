@@ -2,7 +2,7 @@ import { DEFAULT_RUN_LIMIT_MS, DEFAULT_SCHEDULE, nextRun, ordinal, scheduleLabel
 import { isActive, minutesLabel, type ModelInfo, type ProviderId, type Repeat, type ScheduledTask, type TaskInput } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { pickModel } from "./composer";
-import { icons } from "./icons";
+import { icons, providerMark } from "./icons";
 import { defaultOptions, local } from "./state";
 import { ago, elapsed, esc, until } from "./util";
 
@@ -43,7 +43,7 @@ function taskCard(state: UiState, t: ScheduledTask): string {
   const running = state.sessions.some((s) => s.scheduledTaskId === t.id && isActive(s));
   const cls = running ? "card-running" : t.paused ? "card-archived" : "card-past";
   const time = running ? "running" : t.paused ? "paused" : `in ${until(t.nextRunAt, state.now)}`;
-  const provider = `<span class="provider provider-${esc(t.options.provider)}">${t.options.provider === "codex" ? icons.codex : icons.claude}</span>`;
+  const provider = providerMark(t.options.provider);
   return `<div class="card ${cls} ${t.id === state.selectedTaskId ? "selected" : ""} ${running ? "" : "no-icon"}" data-action="selectTask" data-task="${esc(t.id)}" title="${esc(taskName(t))}">
     <div class="card-row">
       ${running ? `<span class="status status-running"></span>` : ""}
@@ -143,7 +143,7 @@ export function renderTaskFields(state: UiState): string {
       ? `<span class="muted">on the</span><select class="chip" data-field="day" aria-label="Day of the month" title="A month without this day runs on its last day">${days.map((d) => option(d, ordinal(d), s.day === d)).join("")}</select>`
       : "";
 
-  const providers = `<span class="chip-wrap has-dot"><span class="dot dot-${esc(f.options.provider)}"></span>
+  const providers = `<span class="chip-wrap has-mark">${providerMark(f.options.provider)}
     <select class="chip" data-field="provider" aria-label="Provider">
       ${state.providers.map((p) => option(p.id, p.unavailable ? `${p.label} (unavailable)` : p.label, p.id === f.options.provider, p.unavailable ? "disabled" : "")).join("")}
     </select></span>`;
