@@ -146,6 +146,12 @@ function context(c: InspectContext | undefined, s: Session, openable: boolean): 
     .join("");
 
   const parts = [`<div class="insp-bar" role="img" aria-label="${esc(`Context: ${summary}`)}">${bar}</div><div class="insp-legend">${legend}</div>`];
+  // Tool schemas Claude Code holds back: the model sees only their names and loads one when it needs it.
+  const deferred = c.categories.filter((x) => x.kind === "deferred");
+  if (deferred.length) {
+    const list = deferred.map((x) => `${esc(x.name.replace(/\s*\(deferred\)$/i, ""))} ${esc(tokens(x.tokens))}`).join(" · ");
+    parts.push(`<div class="insp-note">Not in the window: ${list}. The model sees these tools by name and loads one when it needs it.</div>`);
+  }
   if (c.memoryFiles.length) {
     const rows = c.memoryFiles.map(
       (f) => `<div class="insp-row insp-row-3">${fileLink(f.path, f.path, openable)}<span class="muted">${esc(f.type)}</span><span class="insp-num">${esc(tokens(f.tokens))}</span></div>`,
@@ -157,17 +163,26 @@ function context(c: InspectContext | undefined, s: Session, openable: boolean): 
     parts.push(sub("Tool calls and results", "tokens in the conversation", rows.join("")));
   }
   if (c.mcpTools.length) {
-    const byServer = new Map<string, { count: number; tokens: number }>();
+    // Only loaded tools count against the window; a deferred one costs its full size once loaded.
+    const byServer = new Map<string, { count: number; loaded: number; inWindow: number; all: number }>();
     for (const t of c.mcpTools) {
-      const e = byServer.get(t.server) || { count: 0, tokens: 0 };
+      const e = byServer.get(t.server) || { count: 0, loaded: 0, inWindow: 0, all: 0 };
+      const loaded = t.loaded !== false;
       e.count += 1;
-      e.tokens += t.tokens;
+      e.all += t.tokens;
+      if (loaded) {
+        e.loaded += 1;
+        e.inWindow += t.tokens;
+      }
       byServer.set(t.server, e);
     }
-    const rows = [...byServer].map(
-      ([server, e]) => `<div class="insp-row insp-row-3"><span class="ellipsis">${esc(server)}</span><span class="muted">${e.count} tools</span><span class="insp-num">${esc(tokens(e.tokens))}</span></div>`,
-    );
-    parts.push(sub("MCP tools", `${c.mcpTools.length}`, rows.join("")));
+    const rows = [...byServer].map(([server, e]) => {
+      const state = e.loaded === e.count ? "all loaded" : e.loaded ? `${e.loaded} loaded` : "none loaded";
+      const title = `${e.inWindow.toLocaleString()} tokens in the window; ${e.all.toLocaleString()} with all ${e.count} tools loaded`;
+      return `<div class="insp-row insp-row-3" title="${esc(title)}"><span class="ellipsis">${esc(server)}</span><span class="muted">${e.count} tools · ${state}</span><span class="insp-num">${esc(tokens(e.inWindow))}</span></div>`;
+    });
+    const loaded = c.mcpTools.filter((t) => t.loaded !== false).length;
+    parts.push(sub("MCP tools", `${c.mcpTools.length} · ${loaded} loaded · tokens in the window`, rows.join("")));
   }
   for (const [title, items] of [
     ["Skills", c.skills],

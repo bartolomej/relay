@@ -292,7 +292,8 @@ export interface InspectContext {
   memoryFiles: Array<{ path: string; type: string; tokens: number }>;
   skills: Array<{ name: string; source: string; tokens: number }>;
   agents: Array<{ name: string; source: string; tokens: number }>;
-  mcpTools: Array<{ name: string; server: string; tokens: number }>;
+  /** `loaded` is false while the tool is deferred: the model sees its name and loads the schema when it needs it. */
+  mcpTools: Array<{ name: string; server: string; tokens: number; loaded?: boolean }>;
   /** Tokens tool calls and their results take up in the conversation, per tool. */
   toolTokens: Array<{ name: string; tokens: number }>;
 }

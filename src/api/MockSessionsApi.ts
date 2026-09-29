@@ -46,7 +46,7 @@ const MOCK_SETUP: InspectSetup = {
 };
 
 function mockContext(used: number): InspectContext {
-  const fixed = 3_100 + 11_800 + 2_400 + 1_900 + 900;
+  const fixed = 3_100 + 11_800 + 310 + 1_900 + 900;
   return {
     usedTokens: used,
     limitTokens: 200_000,
@@ -54,7 +54,9 @@ function mockContext(used: number): InspectContext {
     categories: [
       { name: "System prompt", tokens: 3_100, kind: "used" },
       { name: "System tools", tokens: 11_800, kind: "used" },
-      { name: "MCP tools", tokens: 2_400, kind: "used" },
+      { name: "MCP tools", tokens: 310, kind: "used" },
+      { name: "MCP tools (deferred)", tokens: 2_090, kind: "deferred" },
+      { name: "System tools (deferred)", tokens: 15_400, kind: "deferred" },
       { name: "Memory files", tokens: 1_900, kind: "used" },
       { name: "Skills", tokens: 900, kind: "used" },
       { name: "Messages", tokens: Math.max(0, used - fixed), kind: "used" },
@@ -71,9 +73,9 @@ function mockContext(used: number): InspectContext {
     ],
     agents: [{ name: "Explore", source: "built-in", tokens: 240 }],
     mcpTools: [
-      { name: "click", server: "relay_browser", tokens: 310 },
-      { name: "navigate_page", server: "relay_browser", tokens: 420 },
-      { name: "take_snapshot", server: "relay_browser", tokens: 1_670 },
+      { name: "click", server: "relay_browser", tokens: 310, loaded: true },
+      { name: "navigate_page", server: "relay_browser", tokens: 420, loaded: false },
+      { name: "take_snapshot", server: "relay_browser", tokens: 1_670, loaded: false },
     ],
     toolTokens: [
       { name: "Read", tokens: 14_300 },

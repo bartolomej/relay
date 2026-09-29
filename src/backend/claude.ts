@@ -425,7 +425,7 @@ function toContext(c: Sdk.SDKControlGetContextUsageResponse): InspectContext {
     memoryFiles: c.memoryFiles.map((f) => ({ path: f.path, type: f.type, tokens: f.tokens })),
     skills: c.skills ? c.skills.skillFrontmatter.map((s) => ({ name: s.name, source: s.source, tokens: s.tokens })) : [],
     agents: c.agents.map((a) => ({ name: a.agentType, source: a.source, tokens: a.tokens })),
-    mcpTools: c.mcpTools.map((t) => ({ name: t.name, server: t.serverName, tokens: t.tokens })),
+    mcpTools: c.mcpTools.map((t) => ({ name: t.name, server: t.serverName, tokens: t.tokens, loaded: t.isLoaded })),
     toolTokens: c.messageBreakdown
       ? c.messageBreakdown.toolCallsByType.map((t) => ({ name: t.name, tokens: t.callTokens + t.resultTokens })).sort((a, b) => b.tokens - a.tokens)
       : [],
