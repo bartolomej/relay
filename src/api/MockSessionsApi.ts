@@ -99,6 +99,7 @@ class MockAdapter implements ProviderAdapter {
       sink.text((i ? " " : "") + words.slice(i, i + 2).join(" "));
       used += 450;
       sink.context({ usedTokens: used, limitTokens: this.id === "claude" ? 200_000 : 272_000 });
+      sink.tokens({ input: used, cachedInput: used - 450, output: 60 });
       for (const w of this.plan.windows) if (w.resetsAt) w.usedPercent = Math.min(100, w.usedPercent + 0.02);
     }
     sink.checkpoint(`mock-msg-${Date.now()}`);
@@ -171,6 +172,8 @@ function seed(store: SessionStore, cwd: string, now: number): void {
   const put = (s: Session, msgs: Message[]) => {
     // Roughly: system prompt and tools, plus a few thousand tokens per turn.
     s.context = { usedTokens: 14_000 + msgs.length * 9_000, limitTokens: s.options.provider === "claude" ? 200_000 : 272_000 };
+    // Each turn re-reads the context a few times over, mostly from cache.
+    s.tokens = { input: msgs.length * 61_000, cachedInput: msgs.length * 54_000, output: msgs.length * 1_450 };
     store.put(s, msgs);
     return s;
   };

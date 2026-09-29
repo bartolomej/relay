@@ -42,11 +42,11 @@ export function until(atMs: number, now: number): string {
   return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }
 
-/** "850", "48k", "1.2M" token counts. */
+/** "850", "1.5k", "48k", "1.2M", "34M" token counts: one decimal below 10, none above. */
 export function tokens(n: number): string {
   if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
-  return `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}M`;
+  const [v, unit] = n < 999_500 ? [n / 1000, "k"] : [n / 1_000_000, "M"];
+  return `${v < 9.95 ? Number(v.toFixed(1)) : Math.round(v)}${unit}`;
 }
 
 /** Colour band for a 0-100 fill: fine, getting close, nearly out. */

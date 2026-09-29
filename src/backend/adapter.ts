@@ -8,6 +8,7 @@ import type {
   ProviderUsage,
   Question,
   SessionOptions,
+  TokenTotals,
   ToolEvent,
 } from "../api/types";
 
@@ -39,6 +40,8 @@ export interface TurnSink {
   /** Resolves with the user's answers, or undefined when they'd rather answer in a message. */
   questions(questions: Question[]): Promise<Answers | undefined>;
   context(usage: ContextUsage): void;
+  /** Tokens spent since the last call; added to the session's totals. */
+  tokens(delta: Partial<TokenTotals>): void;
   /** Provider id of the latest assistant message, so a fork can branch at it. */
   checkpoint(providerMessageId: string): void;
 }

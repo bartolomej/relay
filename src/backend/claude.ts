@@ -2,7 +2,7 @@ import * as os from "os";
 import * as path from "path";
 import type * as Sdk from "@anthropic-ai/claude-agent-sdk";
 import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import { capDiff, type Effort, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type ToolEvent, type UsageWindow } from "../api/types";
+import { capDiff, type Effort, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type TokenTotals, type ToolEvent, type UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 import { BROWSER_MCP, BROWSER_PROMPT, browserMcp } from "./browserMcp";
@@ -187,6 +187,8 @@ export class ClaudeAdapter implements ProviderAdapter {
     let result: TurnResult = { ok: false, error: "Claude stopped without finishing the turn." };
     const run = (async () => {
       const streamed = new Set<string>();
+      // Per stream (the main loop, each subagent): usage of the message in flight so far.
+      const counted = new Map<string, RawUsage>();
       let wroteText = false;
       for await (const m of q) {
         switch (m.type) {
@@ -194,8 +196,17 @@ export class ClaudeAdapter implements ProviderAdapter {
             if (m.subtype === "init") sink.providerSessionId(m.session_id);
             break;
           case "stream_event": {
-            if (m.parent_tool_use_id) break;
             const e = m.event;
+            // Subagents spend tokens too, so they count before their text is skipped.
+            if (e.type === "message_start" || e.type === "message_delta") {
+              const key = m.parent_tool_use_id || "";
+              const before = e.type === "message_start" ? undefined : counted.get(key);
+              const now = mergeUsage(e.type === "message_start" ? e.message.usage : e.usage, before);
+              counted.set(key, now);
+              const [a, b] = [totals(now), totals(before)];
+              sink.tokens({ input: a.input - b.input, cachedInput: a.cachedInput - b.cachedInput, output: a.output - b.output });
+            }
+            if (m.parent_tool_use_id) break;
             if (e.type === "message_start") streamed.add(e.message.id);
             else if (e.type === "content_block_start" && e.content_block.type === "text" && wroteText) sink.text("\n\n");
             else if (e.type === "content_block_delta" && e.delta.type === "text_delta") {
@@ -294,6 +305,32 @@ export class ClaudeAdapter implements ProviderAdapter {
 }
 
 // -- mapping ----------------------------------------------------------------
+
+/** A message's usage as the API counts it: cumulative within the message. */
+interface RawUsage {
+  input_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
+  output_tokens: number | null;
+}
+
+/** Fills in what a delta left out (null) with the message's earlier values. */
+function mergeUsage(u: RawUsage, before: RawUsage | undefined): RawUsage {
+  const or = (v: number | null, k: keyof RawUsage) => (v !== null ? v : before ? before[k] : 0);
+  return {
+    input_tokens: or(u.input_tokens, "input_tokens"),
+    cache_creation_input_tokens: or(u.cache_creation_input_tokens, "cache_creation_input_tokens"),
+    cache_read_input_tokens: or(u.cache_read_input_tokens, "cache_read_input_tokens"),
+    output_tokens: or(u.output_tokens, "output_tokens"),
+  };
+}
+
+/** Everything read counts as input, cache hits and writes included. */
+function totals(u: RawUsage | undefined): TokenTotals {
+  if (!u) return { input: 0, cachedInput: 0, output: 0 };
+  const cached = u.cache_read_input_tokens || 0;
+  return { input: (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + cached, cachedInput: cached, output: u.output_tokens || 0 };
+}
 
 /** AskUserQuestion's input; answers go back keyed by the question text. */
 function toQuestions(input: Record<string, unknown>): Question[] {

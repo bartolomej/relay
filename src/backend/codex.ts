@@ -48,6 +48,19 @@ type ThreadItem =
   | { type: "webSearch"; id: string; query?: string }
   | { type: string; id: string };
 
+interface TokenUsageBreakdown {
+  totalTokens: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+}
+
+interface ThreadTokenUsage {
+  total: TokenUsageBreakdown;
+  last: TokenUsageBreakdown;
+  modelContextWindow: number | null;
+}
+
 interface Turn {
   id: string;
   status: "completed" | "interrupted" | "failed" | "inProgress";
@@ -192,6 +205,8 @@ export class CodexAdapter implements ProviderAdapter {
   /** Running turn per thread id. */
   private active = new Map<string, ActiveTurn>();
   private threadOf = new Map<string, string>();
+  /** Each loaded thread's token totals as last reported, to count only what's new. */
+  private tokenTotals = new Map<string, TokenUsageBreakdown>();
   private models: CodexModel[] = [];
   private rateLimits: RateLimitsResponse | undefined;
   private usageError: string | undefined;
@@ -340,6 +355,7 @@ export class CodexAdapter implements ProviderAdapter {
       this.server = undefined;
       this.loaded.clear();
       this.loadedBrowser.clear();
+      this.tokenTotals.clear();
     });
     await server.request("initialize", { clientInfo: { name: "relay", title: "Relay", version: "0.0.1" }, capabilities: null });
     server.notify("initialized");
@@ -382,8 +398,19 @@ export class CodexAdapter implements ProviderAdapter {
         break;
       }
       case "thread/tokenUsage/updated": {
-        const usage = params.tokenUsage as { last: { totalTokens: number }; modelContextWindow: number | null };
+        const usage = params.tokenUsage as ThreadTokenUsage;
         if (usage.modelContextWindow) sink.context({ usedTokens: usage.last.totalTokens, limitTokens: usage.modelContextWindow });
+        // The thread's totals may include turns from before this process; the first report counts only its latest request.
+        const threadId = params.threadId as string;
+        const before = this.tokenTotals.get(threadId);
+        const spent = before ? usage.total : usage.last;
+        const base = before || { totalTokens: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+        this.tokenTotals.set(threadId, usage.total);
+        sink.tokens({
+          input: Math.max(0, spent.inputTokens - base.inputTokens),
+          cachedInput: Math.max(0, spent.cachedInputTokens - base.cachedInputTokens),
+          output: Math.max(0, spent.outputTokens - base.outputTokens),
+        });
         break;
       }
       case "error": {

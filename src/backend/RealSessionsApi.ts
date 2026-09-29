@@ -101,6 +101,7 @@ export class RealSessionsApi implements SessionsApi {
       ...s,
       queued: s.queued.map((q) => ({ ...q })),
       context: s.context ? { ...s.context } : undefined,
+      tokens: s.tokens ? { ...s.tokens } : undefined,
     }));
   }
 
@@ -188,6 +189,8 @@ export class RealSessionsApi implements SessionsApi {
       pendingApproval: undefined,
       pendingQuestions: undefined,
       scheduledTaskId: undefined,
+      // A fork counts only what it spends itself.
+      tokens: undefined,
       providerSessionId: undefined,
       forkOf: parent.providerSessionId
         ? { providerSessionId: parent.providerSessionId, atProviderMessageId: fromMessageId && lastAssistant ? lastAssistant.providerMessageId : undefined }
@@ -403,6 +406,14 @@ export class RealSessionsApi implements SessionsApi {
       context: (usage) => {
         if (!live()) return;
         session.context = usage;
+        this.emit();
+      },
+      tokens: (delta) => {
+        if (!live()) return;
+        const t = session.tokens || (session.tokens = { input: 0, cachedInput: 0, output: 0 });
+        t.input += delta.input || 0;
+        t.cachedInput += delta.cachedInput || 0;
+        t.output += delta.output || 0;
         this.emit();
       },
       checkpoint: (providerMessageId) => {

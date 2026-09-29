@@ -110,6 +110,8 @@ export interface Session {
   queued: QueuedMessage[];
   /** Context window fill as of the last model turn. */
   context?: ContextUsage;
+  /** Tokens this session has spent so far, over all its turns. */
+  tokens?: TokenTotals;
   /** The provider's own conversation id (Claude session id, Codex thread id). */
   providerSessionId?: string;
   /** For a fork that hasn't run yet: where to branch from on its first turn. */
@@ -189,6 +191,14 @@ export interface ContextUsage {
   usedTokens: number;
   /** The model's context window. */
   limitTokens: number;
+}
+
+export interface TokenTotals {
+  /** Everything the model read, summed over every request; cache hits included. */
+  input: number;
+  /** The part of `input` served from the prompt cache. */
+  cachedInput: number;
+  output: number;
 }
 
 /**

@@ -140,13 +140,23 @@ function questions(s: Session): string {
   </div>`;
 }
 
-function contextMeter(used: number, limit: number, wide: boolean): string {
-  const pct = Math.min(100, Math.round((used / limit) * 100));
-  const title = `Context: ${used.toLocaleString()} of ${limit.toLocaleString()} tokens`;
-  const text = wide ? `${tokens(used)} / ${tokens(limit)} · ${pct}%` : `${pct}%`;
-  return `<span class="ctx" title="${esc(title)}"><span class="ctx-label">Context</span>
-    <progress class="meter meter-${level(pct)}" max="100" value="${pct}" aria-label="${esc(title)}"></progress>
-    <span class="ctx-value">${esc(text)}</span></span>`;
+/** Context fill, then the tokens read and written so far; each part only once it's known. */
+function tokenMeter(s: Session, wide: boolean): string {
+  const parts: string[] = [];
+  const title: string[] = [];
+  if (s.context) {
+    const { usedTokens: used, limitTokens: limit } = s.context;
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    title.push(`Context: ${used.toLocaleString()} of ${limit.toLocaleString()} tokens`);
+    parts.push(`<span class="ctx-label">Context</span><span class="ctx-${level(pct)}">${esc(wide ? `${tokens(used)} / ${tokens(limit)} · ${pct}%` : `${pct}%`)}</span>`);
+  }
+  if (s.tokens) {
+    const t = s.tokens;
+    title.push(`In: ${t.input.toLocaleString()} tokens, ${t.cachedInput.toLocaleString()} of them from cache`, `Out: ${t.output.toLocaleString()} tokens`);
+    parts.push(`<span>in ${esc(tokens(t.input))}</span><span>out ${esc(tokens(t.output))}</span>`);
+  }
+  if (!parts.length) return "";
+  return `<span class="ctx" title="${esc(title.join("\n"))}">${parts.join("")}</span>`;
 }
 
 /** On: the computer stays awake while any agent works. Off: it may sleep. */
@@ -247,7 +257,7 @@ function head(state: UiState, s: Session | undefined): string {
     state.layout === "wide"
       ? `<span class="muted ellipsis">· ${esc(p ? p.label : s.options.provider)} · ${esc(m ? m.label : s.options.model)} · ${esc(s.options.effort)} · ${esc(s.folder)} · started ${esc(ago(s.createdAt, state.now))}</span>`
       : "";
-  const ctx = s.context ? contextMeter(s.context.usedTokens, s.context.limitTokens, state.layout === "wide") : "";
+  const ctx = tokenMeter(s, state.layout === "wide");
   const complete = isActive(s)
     ? ""
     : s.archived

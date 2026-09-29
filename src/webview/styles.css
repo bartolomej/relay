@@ -219,9 +219,9 @@ textarea, input, select { font: inherit; color: inherit; }
 .app-wide .chat-head .title { color: var(--fg-strong); font-weight: 600; flex-shrink: 0; max-width: 50%; }
 .chat-head .status-running { width: 10px; height: 10px; }
 .ctx { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-.ctx .meter { width: 36px; }
 .app-sidebar .ctx-label { display: none; }
-.app-wide .ctx .meter { width: 64px; }
+.ctx-warn { color: var(--wait); }
+.ctx-crit { color: var(--fail); }
 .chat-head .icon-btn.on, .section-head .icon-btn.on { color: var(--run); }
 .chat-head .icon-btn:disabled { cursor: default; background: none; }
 .chat-head .icon-btn:disabled:not(.on) { opacity: 0.5; }
