@@ -141,20 +141,20 @@ function questions(s: Session): string {
   </div>`;
 }
 
-/** Context fill, then the tokens read and written so far; each part only once it's known. */
-function tokenMeter(s: Session, wide: boolean): string {
+/** Context fill, then the tokens read (up) and written (down) so far; each part only once it's known. */
+function tokenMeter(s: Session): string {
   const parts: string[] = [];
   const title: string[] = [];
   if (s.context) {
     const { usedTokens: used, limitTokens: limit } = s.context;
     const pct = Math.min(100, Math.round((used / limit) * 100));
-    title.push(`Context: ${used.toLocaleString()} of ${limit.toLocaleString()} tokens`);
-    parts.push(`<span class="ctx-label">Context</span><span class="ctx-${level(pct)}">${esc(wide ? `${tokens(used)} / ${tokens(limit)} · ${pct}%` : `${pct}%`)}</span>`);
+    title.push(`Context: ${used.toLocaleString()} of ${limit.toLocaleString()} tokens (${pct}%)`);
+    parts.push(`<span class="ctx-part ctx-${level(pct)}">${icons.context}${esc(`${tokens(used)} / ${tokens(limit)}`)}</span>`);
   }
   if (s.tokens) {
     const t = s.tokens;
     title.push(`In: ${t.input.toLocaleString()} tokens, ${t.cachedInput.toLocaleString()} of them from cache`, `Out: ${t.output.toLocaleString()} tokens`);
-    parts.push(`<span>in ${esc(tokens(t.input))}</span><span>out ${esc(tokens(t.output))}</span>`);
+    parts.push(`<span class="ctx-part">${icons.arrowUp}${esc(tokens(t.input))}</span><span class="ctx-part">${icons.arrowDown}${esc(tokens(t.output))}</span>`);
   }
   if (!parts.length) return "";
   return `<span class="ctx" title="${esc(title.join("\n"))}">${parts.join("")}</span>`;
@@ -266,7 +266,7 @@ function head(state: UiState, s: Session | undefined): string {
     state.layout === "wide"
       ? `<span class="muted ellipsis">· ${esc(p ? p.label : s.options.provider)} · ${esc(m ? m.label : s.options.model)} · ${esc(s.options.effort)} · ${esc(s.folder)} · started ${esc(ago(s.createdAt, state.now))}</span>`
       : "";
-  const ctx = tokenMeter(s, state.layout === "wide");
+  const ctx = tokenMeter(s);
   const complete = isActive(s)
     ? ""
     : s.archived
