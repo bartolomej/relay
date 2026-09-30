@@ -45,8 +45,17 @@ function renderLeft(s: UiState): void {
   const left = document.getElementById("left");
   const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s)) : renderSessions(s)}`;
   if (!left || html === leftHtml) return;
+  // The redraw replaces the search box; keep typing in it where the cursor was.
+  const active = document.activeElement;
+  const at = active instanceof HTMLInputElement && active.classList.contains("past-search") ? active.selectionStart : undefined;
   left.innerHTML = html;
   leftHtml = html;
+  const search = at === undefined ? null : left.querySelector<HTMLInputElement>(".past-search");
+  if (search) {
+    search.focus();
+    const end = at === null || at === undefined ? search.value.length : at;
+    search.setSelectionRange(end, end);
+  }
 }
 
 /** The selected scheduled task's form. `redrawFields` after a choice that changes which fields there are. */
@@ -320,6 +329,7 @@ app.addEventListener("click", (e) => {
       render();
       break;
     case "toggleAllPast":
+      local.pastQuery = "";
       post({ type: "toggleAllPast" });
       break;
     case "toggleKeepAwake":
@@ -375,6 +385,13 @@ app.addEventListener("click", (e) => {
       break;
     }
   }
+});
+
+app.addEventListener("input", (e) => {
+  const input = e.target as HTMLInputElement;
+  if (!input.classList.contains("past-search")) return;
+  local.pastQuery = input.value;
+  render();
 });
 
 // Typing an answer: a one-pick question drops its picked option, since the typed text replaces it.

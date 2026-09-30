@@ -1,6 +1,7 @@
 import { isActive, type Session } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
+import { local } from "./state";
 import { scheduledToggle } from "./tasks";
 import { ago, elapsed, esc } from "./util";
 
@@ -150,9 +151,19 @@ function card(state: UiState, node: Node, depth: number): string {
   </div>`;
 }
 
-function group(state: UiState, title: string, note: string, nodes: Node[]): string {
-  return `<div class="group-head"><span>${esc(title)}</span><span class="count">${esc(note)}</span></div>
+function group(state: UiState, title: string, note: string, nodes: Node[], tools = ""): string {
+  return `<div class="group-head"><span>${esc(title)}</span><span class="count">${esc(note)}</span>${tools}</div>
     ${nodes.map((n) => card(state, n, 0)).join("")}`;
+}
+
+/** With all past sessions shown, Past's heading collapses them again and searches their titles. */
+function pastTools(): string {
+  return `<button class="icon-btn sm past-collapse" data-action="toggleAllPast" title="Hide older and completed" aria-label="Hide older and completed">${icons.chevron}</button>
+    <input class="past-search" type="search" placeholder="Search titles" aria-label="Search past session titles" value="${esc(local.pastQuery)}">`;
+}
+
+function matches(n: Node, query: string): boolean {
+  return members(n).some((s) => s.title.toLowerCase().includes(query));
 }
 
 /** Serves Relay to the phone through Tailscale; clicking again turns it off. */
@@ -178,14 +189,17 @@ export function renderSessions(state: UiState): string {
   const byLatest = (a: Node, b: Node) => latestActivity(b) - latestActivity(a);
   working.sort((a, b) => runStart(b) - runStart(a));
   review.sort(byLatest);
-  const past = (state.showAllPast ? recent.concat(older) : recent).sort(byLatest);
+  const expanded = state.showAllPast && older.length > 0;
+  const query = expanded ? local.pastQuery.trim().toLowerCase() : "";
+  const past = (state.showAllPast ? recent.concat(older) : recent).filter((n) => !query || matches(n, query)).sort(byLatest);
 
   const hours = Math.round(state.pastWindowMs / 3_600_000);
-  const toggle = older.length
-    ? `<button class="older-toggle ${state.showAllPast ? "open" : ""}" data-action="toggleAllPast">${icons.chevron}
-         ${state.showAllPast ? "Hide older and completed" : `Show all past sessions <span class="muted">· ${older.length} more</span>`}</button>`
-    : "";
-  const nothing = !working.length && !review.length && !past.length;
+  const toggle =
+    older.length && !state.showAllPast
+      ? `<button class="older-toggle" data-action="toggleAllPast">${icons.chevron}
+           Show all past sessions <span class="muted">· ${older.length} more</span></button>`
+      : "";
+  const nothing = !working.length && !review.length && !past.length && !query;
 
   const head =
     state.layout === "wide"
@@ -201,7 +215,8 @@ export function renderSessions(state: UiState): string {
     <div class="sessions-list">
       ${working.length ? group(state, "Working", String(working.length), working) : ""}
       ${review.length ? group(state, "Ready to review", String(review.length), review) : ""}
-      ${past.length ? group(state, "Past", state.showAllPast ? "all" : `last ${hours}h`, past) : ""}
+      ${past.length || expanded ? group(state, "Past", state.showAllPast ? "all" : `last ${hours}h`, past, expanded ? pastTools() : "") : ""}
+      ${expanded && !past.length ? `<div class="empty">No past sessions match.</div>` : ""}
       ${nothing ? `<div class="empty">No recent sessions. Type below to start one.</div>` : ""}
       ${toggle}
     </div>
