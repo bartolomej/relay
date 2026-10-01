@@ -1,4 +1,4 @@
-import { isActive, type Session } from "../api/types";
+import { hasBackground, isActive, type Session } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
 import { local } from "./state";
@@ -39,14 +39,19 @@ function latestActivity(n: Node): number {
   return Math.max(...members(n).map((s) => Math.max(s.lastActivityAt, s.seenAt || 0)));
 }
 
+/** Busy, or idle while the agent's background work runs. */
+function working(s: Session): boolean {
+  return isActive(s) || hasBackground(s);
+}
+
 /** When the tree started its current run, so working cards keep their order while they work. */
 function runStart(n: Node): number {
-  return Math.min(...members(n).filter(isActive).map((s) => s.runStartedAt || s.createdAt));
+  return Math.min(...members(n).filter(working).map((s) => s.runStartedAt || s.createdAt));
 }
 
 function groupOf(n: Node): Group {
   const all = members(n);
-  if (all.some(isActive)) return "working";
+  if (all.some(working)) return "working";
   const live = all.filter((s) => !s.archived);
   if (live.length === 0) return "archived";
   return live.some((s) => s.unread) ? "review" : "past";
@@ -100,6 +105,14 @@ function timeCell(s: Session, now: number): string {
   return ago(s.lastActivityAt, now);
 }
 
+/** The work an agent left running between turns, listed on hover. */
+export function backgroundTag(s: Session, cls = ""): string {
+  if (!s.background || !s.background.length) return "";
+  const n = s.background.length;
+  const title = `Running in the background; the agent picks up again as it finishes:\n${s.background.map((t) => `• ${t.description}`).join("\n")}`;
+  return `<span class="mode-tag ${cls}" title="${esc(title)}">Background${n > 1 ? ` · ${n}` : ""}</span>`;
+}
+
 function card(state: UiState, node: Node, depth: number): string {
   const s = node.session;
   const isSel = s.id === state.selectedSessionId;
@@ -137,11 +150,13 @@ function card(state: UiState, node: Node, depth: number): string {
     <div class="card-meta">
       ${providerIcon(state, s)}
       ${s.scheduledTaskId ? `<span class="mode-tag card-tag">Scheduled</span>` : ""}
+      ${backgroundTag(s, "card-tag")}
       <span class="ellipsis grow">${esc(forkNote)}${esc(modelLabel(state, s))} · ${esc(s.options.effort)}</span>
       ${approvalNote}
       <span class="card-tools">
         <button class="icon-btn sm" data-action="fork" data-id="${esc(s.id)}" title="Fork session" aria-label="Fork session">${icons.fork}</button>
         ${canStop ? `<button class="icon-btn sm" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop">${icons.stop}</button>` : ""}
+        ${!canStop && hasBackground(s) ? `<button class="icon-btn sm" data-action="stop" data-id="${esc(s.id)}" title="Stop the background work" aria-label="Stop the background work">${icons.stop}</button>` : ""}
         ${canComplete ? `<button class="icon-btn sm" data-action="complete" data-id="${esc(s.id)}" title="Complete" aria-label="Complete session">${icons.check}</button>` : ""}
       </span>
       <span class="card-time" ${isActive(s) ? "" : `title="${esc(`Started: ${ago(s.createdAt, state.now)} · Last active: ${ago(s.lastActivityAt, state.now)}`)}"`}>${esc(s.archived ? "completed" : timeCell(s, state.now))}</span>

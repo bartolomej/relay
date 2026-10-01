@@ -148,6 +148,7 @@ export class SessionStore {
       s.pendingApproval = undefined;
       s.pendingQuestions = undefined;
     }
+    s.background = undefined;
     for (const m of messages) m.streaming = false;
     this.sessions.set(s.id, s);
     this.messages.set(s.id, messages);

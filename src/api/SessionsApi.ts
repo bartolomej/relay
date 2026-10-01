@@ -41,6 +41,7 @@ export interface SessionsApi {
    * worktree, e.g. another provider giving a second opinion. Starts empty.
    */
   createSubsession(parentId: string, options: SessionOptions, title: string): Promise<Session>;
+  /** Stops the running turn; on an idle session, the work its agent left running in the background. */
   stopSession(sessionId: string): Promise<void>;
   respondToApproval(sessionId: string, decision: ApprovalDecision): Promise<void>;
   /** Without answers the agent is told to ask in plain text instead. */
@@ -54,8 +55,9 @@ export interface SessionsApi {
   /** The user has looked at the finished output. */
   markSeen(sessionId: string): Promise<void>;
   /**
-   * Marks the session and its finished forks complete. A session in a worktree
-   * is merged back first; on a conflict or error it stays open with a note.
+   * Marks the session and its finished forks complete, stopping any work their
+   * agents left running in the background. A session in a worktree is merged
+   * back first; on a conflict or error it stays open with a note.
    */
   archiveSession(sessionId: string): Promise<void>;
 

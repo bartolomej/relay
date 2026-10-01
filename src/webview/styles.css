@@ -240,6 +240,7 @@ textarea, input, select { font: inherit; color: inherit; }
 .run-clock:hover { background: var(--bg-hover); color: var(--fg); }
 .run-clock svg { width: 13px; height: 13px; }
 .run-clock.near { color: var(--wait); }
+.head-tag { margin-right: 0; flex-shrink: 0; }
 
 .messages { flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 14px 14px; }
 .messages-inner { display: flex; flex-direction: column; gap: 14px; }

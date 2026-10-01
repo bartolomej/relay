@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { createMockSessionsApi } from "./api/MockSessionsApi";
 import type { SessionsApi } from "./api/SessionsApi";
-import { isActive, type Session } from "./api/types";
+import { hasBackground, isActive, type Session } from "./api/types";
 import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
@@ -229,7 +229,8 @@ function registerRemote(context: vscode.ExtensionContext, api: SessionsApi): voi
 }
 
 /**
- * Holds the computer awake while any session is running, unless turned off.
+ * Holds the computer awake while any session is running, background work
+ * included, unless turned off.
  * With Remote on it always does, and also while a session waits for an
  * approval, since the phone can only answer while the computer is awake.
  */
@@ -243,8 +244,8 @@ function watchKeepAwake(context: vscode.ExtensionContext, api: SessionsApi): voi
     setTimeout(async () => {
       queued = false;
       const sessions = await api.listSessions();
-      if (remoteStatus.on) keepAwake.set(sessions.some(isActive));
-      else keepAwake.set(sessions.some((s) => s.status === "running") && keepAwakeEnabled());
+      if (remoteStatus.on) keepAwake.set(sessions.some((s) => isActive(s) || hasBackground(s)));
+      else keepAwake.set(sessions.some((s) => s.status === "running" || hasBackground(s)) && keepAwakeEnabled());
     }, 500);
   };
   const unsubscribe = api.onDidChange(update);

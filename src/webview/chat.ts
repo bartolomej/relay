@@ -1,4 +1,4 @@
-import { isActive, minutesLabel, type Answers, type Message, type MessageMode, type Question, type Session, type ToolEvent } from "../api/types";
+import { hasBackground, isActive, minutesLabel, type Answers, type Message, type MessageMode, type Question, type Session, type ToolEvent } from "../api/types";
 import { taskName } from "../api/schedule";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
@@ -6,6 +6,7 @@ import { elapsed, esc, level, tokens } from "./util";
 import { local, selected } from "./state";
 import { renderMarkdown } from "./markdown";
 import { renderInspect } from "./inspect";
+import { backgroundTag } from "./sessions";
 
 function toolIcon(kind: ToolEvent["kind"]): string {
   switch (kind) {
@@ -277,6 +278,7 @@ function head(state: UiState, s: Session | undefined): string {
   return `<div class="chat-head">
     ${status}
     <span class="title ellipsis">${esc(s.title)}</span>${sub}<span class="grow"></span>
+    ${backgroundTag(s, "head-tag")}
     ${ctx}
     ${runClock(state, s)}
     ${inspectToggle(state, s)}
@@ -287,6 +289,7 @@ function head(state: UiState, s: Session | undefined): string {
     ${scheduleButton(state, s)}
     <button class="icon-btn" data-action="fork" data-id="${esc(s.id)}" title="Fork session" aria-label="Fork session">${icons.fork}</button>
     ${isActive(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop session">${icons.stop}</button>` : ""}
+    ${!isActive(s) && hasBackground(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop the background work" aria-label="Stop the background work">${icons.stop}</button>` : ""}
     ${complete}
   </div>`;
 }

@@ -125,6 +125,15 @@ export interface Session {
   worktree?: Worktree;
   /** Started by this scheduled task. */
   scheduledTaskId?: string;
+  /** Work the agent left running between turns; it picks up again as each one finishes. */
+  background?: BackgroundTask[];
+}
+
+/** A command or subagent the agent runs in the background, e.g. a long build or eval. */
+export interface BackgroundTask {
+  id: string;
+  /** What the agent said it's for, e.g. "Run the eval". */
+  description: string;
 }
 
 /** How often a scheduled task runs, always at `time`. */
@@ -351,6 +360,10 @@ export function workDir(s: Session): string {
 
 export function isActive(s: Session): boolean {
   return s.status === "running" || s.status === "waiting";
+}
+
+export function hasBackground(s: Session): boolean {
+  return !!s.background && s.background.length > 0;
 }
 
 /** "0.4s", "45s", "2m 14s", "1h 3m" for how long something took. */

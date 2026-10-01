@@ -1,6 +1,7 @@
 import type {
   Answers,
   ApprovalDecision,
+  BackgroundTask,
   ContextUsage,
   InspectUpdate,
   PendingApproval,
@@ -64,5 +65,15 @@ export interface ProviderAdapter {
   interrupt(sessionId: string): Promise<void>;
   /** Called when plan usage changed (e.g. a rate-limit event arrived). */
   onDidChange(listener: () => void): void;
+  /**
+   * Called whenever a session's background work changes, with all of it;
+   * empty once it has finished or stopped. Only for adapters that keep work
+   * running between turns.
+   */
+  onBackground?(listener: (sessionId: string, tasks: BackgroundTask[]) => void): void;
+  /** Called when the agent starts a turn by itself, e.g. as background work finishes; `run` streams it into the sink. */
+  onAgentTurn?(listener: (sessionId: string, run: (sink: TurnSink) => Promise<TurnResult>) => void): void;
+  /** Stops the session's background work and lets its process go. */
+  stopBackground?(sessionId: string): Promise<void>;
   dispose(): void;
 }

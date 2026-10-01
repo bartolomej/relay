@@ -5,6 +5,7 @@ import {
   workDir,
   type Answers,
   type ApprovalDecision,
+  type BackgroundTask,
   type Delivery,
   type Message,
   type MessageMode,
@@ -16,7 +17,7 @@ import {
   type SessionOptions,
   type Worktree,
 } from "../api/types";
-import type { ProviderAdapter, TurnSink, TurnTarget } from "./adapter";
+import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import type { SessionStore } from "./store";
 import type { Titler } from "./titles";
 import { createWorktree, mergeWorktree } from "./worktree";
@@ -81,6 +82,8 @@ export class RealSessionsApi implements SessionsApi {
     for (const a of adapters) {
       this.adapters.set(a.id, a);
       a.onDidChange(() => void this.refreshUsage());
+      if (a.onBackground) a.onBackground((sessionId, tasks) => this.setBackground(sessionId, tasks));
+      if (a.onAgentTurn) a.onAgentTurn((sessionId, run) => this.agentTurn(sessionId, run));
     }
     this.providersLoading = this.refreshProviders();
     void this.refreshUsage();
@@ -249,7 +252,8 @@ export class RealSessionsApi implements SessionsApi {
 
   async stopSession(sessionId: string): Promise<void> {
     const session = this.store.sessions.get(sessionId);
-    if (!session || !isActive(session)) return;
+    if (!session) return;
+    if (!isActive(session)) return this.stopBackground(session);
     await this.interrupt(session);
     session.lastActivityAt = Date.now();
     this.emit();
@@ -296,18 +300,28 @@ export class RealSessionsApi implements SessionsApi {
 
   async archiveSession(sessionId: string): Promise<void> {
     const session = this.store.sessions.get(sessionId);
+    // What the agents left running ends first, so nothing keeps writing to a worktree being merged.
+    await Promise.all(this.withForks(sessionId).filter((s) => !isActive(s)).map((s) => this.stopBackground(s)));
     if (session && session.worktree && !isActive(session) && !(await this.mergeBack(session, session.worktree))) return;
-    const archive = (id: string) => {
-      const s = this.store.sessions.get(id);
-      if (!s) return;
-      if (!isActive(s)) {
-        s.archived = true;
-        s.unread = false;
-      }
-      for (const child of this.store.sessions.values()) if (child.parentId === id) archive(child.id);
-    };
-    archive(sessionId);
+    for (const s of this.withForks(sessionId)) {
+      if (isActive(s)) continue;
+      s.archived = true;
+      s.unread = false;
+    }
     this.emit();
+  }
+
+  /** The session and everything forked or nested under it. */
+  private withForks(sessionId: string): Session[] {
+    const s = this.store.sessions.get(sessionId);
+    if (!s) return [];
+    const all = [s];
+    for (const child of this.store.sessions.values()) if (child.parentId === sessionId) all.push(...this.withForks(child.id));
+    return all;
+  }
+
+  private async stopBackground(session: Session): Promise<void> {
+    for (const a of this.adapters.values()) if (a.stopBackground) await a.stopBackground(session.id);
   }
 
   onDidChange(listener: () => void): Unsubscribe {
@@ -352,6 +366,61 @@ export class RealSessionsApi implements SessionsApi {
   private async runTurn(session: Session, text: string, live: () => boolean, readOnly: boolean): Promise<void> {
     const adapter = this.adapters.get(session.options.provider);
     if (!adapter) throw new Error(`No backend for ${session.options.provider}`);
+    await this.drive(session, live, async (sink) => {
+      if (session.useWorktree && !session.worktree) {
+        session.worktree = await createWorktree(session.cwd, session.id, session.title);
+        this.emit();
+      }
+      // Ask mode can't change anything, so it doesn't get a browser to click around in.
+      let browserUrl: string | undefined;
+      if (session.browserAccess && !readOnly && this.openBrowser) {
+        try {
+          browserUrl = await this.openBrowser();
+        } catch (err) {
+          this.note(session, `The agent works without Relay's browser this turn: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        if (!live()) return undefined;
+      }
+      const target: TurnTarget = {
+        sessionId: session.id,
+        cwd: workDir(session),
+        options: session.options,
+        providerSessionId: session.providerSessionId,
+        forkOf: session.forkOf,
+        readOnly,
+        browserUrl,
+      };
+      return adapter.runTurn(target, text, sink);
+    });
+  }
+
+  /** The agent picked up again by itself, e.g. as its background work finished. */
+  private agentTurn(sessionId: string, run: (sink: TurnSink) => Promise<TurnResult>): void {
+    const session = this.store.sessions.get(sessionId);
+    // A message of the user's is about to go in; it waits for this turn, which goes unseen.
+    if (!session || this.turns.has(sessionId)) return;
+    session.status = "running";
+    session.lastActivityAt = Date.now();
+    session.runStartedAt = session.lastActivityAt;
+    this.emit();
+    const turn = ++this.turnSeq;
+    this.turns.set(session.id, turn);
+    const live = () => this.turns.get(session.id) === turn;
+    const done = this.drive(session, live, run).catch((err: unknown) => {
+      if (live()) this.endTurn(session, `Error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    this.running.set(session.id, done);
+  }
+
+  private setBackground(sessionId: string, tasks: BackgroundTask[]): void {
+    const session = this.store.sessions.get(sessionId);
+    if (!session) return;
+    session.background = tasks.length ? tasks : undefined;
+    this.emit();
+  }
+
+  /** Streams one turn into the session through `go`, then ends it; `go` gives up with undefined. */
+  private async drive(session: Session, live: () => boolean, go: (sink: TurnSink) => Promise<TurnResult | undefined>): Promise<void> {
     const list = this.store.messagesOf(session.id);
     let current: Message | undefined;
     const assistant = (): Message => {
@@ -474,31 +543,8 @@ export class RealSessionsApi implements SessionsApi {
       },
     };
 
-    if (session.useWorktree && !session.worktree) {
-      session.worktree = await createWorktree(session.cwd, session.id, session.title);
-      this.emit();
-    }
-    // Ask mode can't change anything, so it doesn't get a browser to click around in.
-    let browserUrl: string | undefined;
-    if (session.browserAccess && !readOnly && this.openBrowser) {
-      try {
-        browserUrl = await this.openBrowser();
-      } catch (err) {
-        this.note(session, `The agent works without Relay's browser this turn: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      if (!live()) return;
-    }
-    const target: TurnTarget = {
-      sessionId: session.id,
-      cwd: workDir(session),
-      options: session.options,
-      providerSessionId: session.providerSessionId,
-      forkOf: session.forkOf,
-      readOnly,
-      browserUrl,
-    };
-    const result = await adapter.runTurn(target, text, sink);
-    if (!live()) return;
+    const result = await go(sink);
+    if (!result || !live()) return;
     if (current) current.streaming = false;
     this.endTurn(session, result.ok ? undefined : result.error || "The turn failed.");
     void this.refreshUsage();

@@ -2,7 +2,7 @@ import * as os from "os";
 import * as path from "path";
 import type * as Sdk from "@anthropic-ai/claude-agent-sdk";
 import type { AskUserQuestionInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
-import { capDiff, durationLabel, type Effort, type InspectContext, type InspectEvent, type InspectSetup, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type TokenTotals, type ToolEvent, type UsageWindow } from "../api/types";
+import { capDiff, durationLabel, type BackgroundTask, type Effort, type InspectContext, type InspectEvent, type InspectSetup, type InspectUpdate, type ModelInfo, type PendingApproval, type ProviderInfo, type ProviderUsage, type Question, type TokenTotals, type ToolEvent, type UsageWindow } from "../api/types";
 import type { ProviderAdapter, TurnResult, TurnSink, TurnTarget } from "./adapter";
 import { findExecutable } from "./binaries";
 import { BROWSER_MCP, BROWSER_PROMPT, browserMcp } from "./browserMcp";
@@ -60,21 +60,67 @@ const READ_ONLY: Partial<Sdk.Options> = {
   },
 };
 
-interface ActiveTurn {
+/** One turn in a Claude process: where its events go, and how it ends. */
+interface Turn {
+  sink: TurnSink;
+  /** Settles with the turn's result. */
+  done: Promise<TurnResult>;
+  finish: (result: TurnResult) => void;
+  wroteText: boolean;
+}
+
+function newTurn(sink: TurnSink): Turn {
+  let finish: (result: TurnResult) => void = () => {};
+  const done = new Promise<TurnResult>((r) => (finish = r));
+  return { sink, done, finish, wroteText: false };
+}
+
+/** Where an agent turn's events go until Relay takes it on. */
+const NO_SINK: TurnSink = {
+  providerSessionId: () => {},
+  text: () => {},
+  tool: () => {},
+  approval: async () => "deny",
+  questions: async () => undefined,
+  context: () => {},
+  tokens: () => {},
+  checkpoint: () => {},
+  inspect: () => {},
+};
+
+/**
+ * A session's Claude process. Its input closes once the agent is idle with
+ * nothing left in the background, which ends it; until then the agent hears
+ * as background work finishes, and new messages go into the same process.
+ */
+interface Proc {
   query: Sdk.Query;
+  /** What it was started with besides the model; a turn that needs other settings gets a new process. */
+  settings: string;
+  model: string;
+  send: (text: string) => void;
+  /** Closes input; the process exits once it has settled. */
+  end: () => void;
+  turn: Turn | undefined;
+  background: BackgroundTask[];
+  /** Inspector updates that came between turns, for the next one. */
+  pending: InspectUpdate[];
+  /** Settles once the process has exited. */
   done: Promise<void>;
 }
 
 /**
  * Claude Code through the Agent SDK, driving the user's installed `claude`
- * (so its login, settings, CLAUDE.md and model catalogue all apply). One query
- * per turn, resumed by session id.
+ * (so its login, settings, CLAUDE.md and model catalogue all apply). A process
+ * per turn, resumed by session id, unless background work keeps it around.
  */
 export class ClaudeAdapter implements ProviderAdapter {
   readonly id = "claude" as const;
-  private active = new Map<string, ActiveTurn>();
+  private procs = new Map<string, Proc>();
   private snapshot: Promise<Snapshot> | undefined;
   private listeners = new Set<() => void>();
+  private backgroundListeners = new Set<(sessionId: string, tasks: BackgroundTask[]) => void>();
+  private agentTurnListeners = new Set<(sessionId: string, run: (sink: TurnSink) => Promise<TurnResult>) => void>();
 
   constructor(private readonly pathOverride: () => string | undefined) {}
 
@@ -144,18 +190,73 @@ export class ClaudeAdapter implements ProviderAdapter {
   // -- turns ---------------------------------------------------------------
 
   async runTurn(target: TurnTarget, text: string, sink: TurnSink): Promise<TurnResult> {
-    const sdk = await loadSdk();
+    const proc = await this.procFor(target, sink);
+    const turn = newTurn(sink);
+    this.attach(proc, turn);
+    sink.inspect({ event: { at: Date.now(), kind: "turn", text: `Sent: ${str(text, 160)}` } });
+    proc.send(text);
+    return turn.done;
+  }
+
+  onBackground(listener: (sessionId: string, tasks: BackgroundTask[]) => void): void {
+    this.backgroundListeners.add(listener);
+  }
+
+  onAgentTurn(listener: (sessionId: string, run: (sink: TurnSink) => Promise<TurnResult>) => void): void {
+    this.agentTurnListeners.add(listener);
+  }
+
+  async stopBackground(sessionId: string): Promise<void> {
+    const proc = this.procs.get(sessionId);
+    if (!proc) return;
+    await Promise.all(proc.background.map((t) => proc.query.stopTask(t.id).catch(() => undefined)));
+    // A turn in flight ends the process by itself once it's idle.
+    if (proc.turn) return;
+    proc.query.close();
+    await proc.done;
+  }
+
+  /** The session's process if it's still around and suits this turn, else a new one. */
+  private async procFor(target: TurnTarget, sink: TurnSink): Promise<Proc> {
     const models = (await this.load()).models;
     const model = models.find((m) => m.value === target.options.model);
     // Only send an effort this model lists; the SDK's type is its own set of names.
     const effort = model && model.supportedEffortLevels ? model.supportedEffortLevels.find((e) => e === target.options.effort) : undefined;
+    const settings = JSON.stringify([target.cwd, effort, !!target.readOnly, target.browserUrl]);
+    let proc = this.procs.get(target.sessionId);
+    // A turn the agent started by itself goes first.
+    while (proc && proc.turn) {
+      await proc.turn.done;
+      proc = this.procs.get(target.sessionId);
+    }
+    if (proc && proc.settings !== settings) {
+      sink.inspect({ event: { at: Date.now(), kind: "turn", text: "Stopped the background work: this message needs Claude restarted with other settings" } });
+      await this.stopBackground(target.sessionId);
+      proc = undefined;
+    }
+    if (proc) {
+      if (proc.model !== target.options.model) {
+        await proc.query.setModel(target.options.model);
+        proc.model = target.options.model;
+      }
+      return proc;
+    }
+    return this.start(target, settings, effort);
+  }
 
-    // Streaming input stays open until the result is in, so context usage can still be read.
-    let closeInput = () => {};
-    const inputClosed = new Promise<void>((r) => (closeInput = r));
+  private async start(target: TurnTarget, settings: string, effort: Sdk.EffortLevel | undefined): Promise<Proc> {
+    const sdk = await loadSdk();
+    const queue: string[] = [];
+    let ended = false;
+    let wake = () => {};
     async function* input(): AsyncGenerator<Sdk.SDKUserMessage> {
-      yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
-      await inputClosed;
+      for (;;) {
+        for (let text = queue.shift(); text !== undefined; text = queue.shift()) {
+          yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+        }
+        if (ended) return;
+        await new Promise<void>((r) => (wake = r));
+      }
     }
 
     const resume: Partial<Sdk.Options> = target.forkOf
@@ -167,8 +268,8 @@ export class ClaudeAdapter implements ProviderAdapter {
     const browser: Partial<Sdk.Options> = target.browserUrl
       ? { mcpServers: { [BROWSER_MCP]: { type: "stdio", ...browserMcp(target.browserUrl) } }, allowedTools: [`mcp__${BROWSER_MCP}`] }
       : {};
-    sink.inspect({ event: { at: Date.now(), kind: "turn", text: `Sent: ${str(text, 160)}` } });
-    const q = sdk.query({
+    const turnSink = () => (proc.turn ? proc.turn.sink : NO_SINK);
+    const query = sdk.query({
       prompt: input(),
       options: {
         cwd: target.cwd,
@@ -179,173 +280,250 @@ export class ClaudeAdapter implements ProviderAdapter {
         ...browser,
         includePartialMessages: true,
         includeHookEvents: true,
+        // "idle" says when the agent is done for now, background work and all.
+        env: { ...process.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: "1" },
+        // Stop only ends the turn; background work is stopped on its own, or on Complete.
+        perTaskStopAffordance: true,
         pathToClaudeCodeExecutable: this.executable(),
-        canUseTool: (name, toolInput, opts) => this.ask(sink, target.cwd, name, toolInput, opts.suggestions),
+        canUseTool: (name, toolInput, opts) => this.ask(turnSink(), target.cwd, name, toolInput, opts.suggestions),
         ...(target.readOnly ? READ_ONLY : {}),
         ...resume,
       },
     });
+    const proc: Proc = {
+      query,
+      settings,
+      model: target.options.model,
+      send: (text) => {
+        queue.push(text);
+        wake();
+      },
+      end: () => {
+        ended = true;
+        wake();
+      },
+      turn: undefined,
+      background: [],
+      pending: [],
+      done: Promise.resolve(),
+    };
+    let failure: string | undefined;
+    proc.done = this.read(target.sessionId, proc, target.cwd)
+      .catch((err: unknown) => {
+        failure = err instanceof Error ? err.message : String(err);
+      })
+      .finally(() => {
+        ended = true;
+        wake();
+        if (this.procs.get(target.sessionId) === proc) this.procs.delete(target.sessionId);
+        if (proc.turn) proc.turn.finish({ ok: false, error: failure || "Claude stopped without finishing the turn." });
+        proc.turn = undefined;
+        if (proc.background.length) this.setBackground(target.sessionId, proc, []);
+      });
+    this.procs.set(target.sessionId, proc);
+    return proc;
+  }
 
-    let result: TurnResult = { ok: false, error: "Claude stopped without finishing the turn." };
-    const run = (async () => {
-      const streamed = new Set<string>();
-      // Per stream (the main loop, each subagent): usage of the message in flight so far.
-      const counted = new Map<string, RawUsage>();
-      // Subagents by the id of the Task call that started them, for the inspector.
-      const agents = new Map<string, string>();
-      const event = (kind: InspectEvent["kind"], text: string, detail?: string) => sink.inspect({ event: { at: Date.now(), kind, text, detail } });
-      let wroteText = false;
-      for await (const m of q) {
-        switch (m.type) {
-          case "system":
-            if (m.subtype === "init") {
-              sink.providerSessionId(m.session_id);
-              sink.inspect({ setup: toSetup(m) });
-            } else if (m.subtype === "compact_boundary") {
-              const c = m.compact_metadata;
-              const after = c.post_tokens !== undefined ? ` to ${c.post_tokens.toLocaleString()}` : "";
-              event("compact", `Compacted (${c.trigger}) from ${c.pre_tokens.toLocaleString()}${after} tokens`);
-            } else if (m.subtype === "api_retry") {
-              const why = m.error_status !== null ? `HTTP ${m.error_status}` : "no response";
-              event("retry", `API retry ${m.attempt} of ${m.max_retries} after ${why}, waiting ${durationLabel(m.retry_delay_ms)}`);
-            } else if (m.subtype === "hook_response") {
-              // Hooks run on every prompt and tool call; only the ones with something to say are worth a row.
-              const out = [m.stderr, m.stdout, m.output].find((x) => x && x.trim());
-              if (out || m.outcome !== "success") event("hook", `Hook ${m.hook_name}: ${m.outcome}`, out ? str(out, 400) : undefined);
-            } else if (m.subtype === "permission_denied") {
-              event("denied", `Denied ${m.tool_name} without asking`, m.decision_reason || m.message);
-            } else if (m.subtype === "memory_recall") {
-              event("memory", `Recalled ${m.memories.length} ${m.memories.length === 1 ? "memory" : "memories"}`, m.memories.map((x) => x.path).join("\n"));
-            } else if (m.subtype === "task_notification") {
-              const name = (m.tool_use_id && agents.get(m.tool_use_id)) || "Subagent";
-              const u = m.usage;
-              const stats = u ? `: ${u.tool_uses} tool calls, ${u.total_tokens.toLocaleString()} tokens, ${durationLabel(u.duration_ms)}` : "";
-              event("subagent", `${name} ${m.status}${stats}`, m.summary ? str(m.summary, 400) : undefined);
-            }
-            break;
-          case "stream_event": {
-            const e = m.event;
-            // Subagents spend tokens too, so they count before their text is skipped.
-            if (e.type === "message_start" || e.type === "message_delta") {
-              const key = m.parent_tool_use_id || "";
-              const before = e.type === "message_start" ? undefined : counted.get(key);
-              const now = mergeUsage(e.type === "message_start" ? e.message.usage : e.usage, before);
-              counted.set(key, now);
-              const [a, b] = [totals(now), totals(before)];
-              sink.tokens({ input: a.input - b.input, cachedInput: a.cachedInput - b.cachedInput, output: a.output - b.output });
-            }
-            if (m.parent_tool_use_id) break;
-            if (e.type === "message_start") streamed.add(e.message.id);
-            else if (e.type === "content_block_start" && e.content_block.type === "text" && wroteText) sink.text("\n\n");
-            else if (e.type === "content_block_delta" && e.delta.type === "text_delta") {
-              sink.text(e.delta.text);
-              wroteText = true;
-            }
-            break;
+  /** Streams the process's messages into whichever turn is current, until it exits. */
+  private async read(sessionId: string, proc: Proc, cwd: string): Promise<void> {
+    const q = proc.query;
+    const streamed = new Set<string>();
+    // Per stream (the main loop, each subagent): usage of the message in flight so far.
+    const counted = new Map<string, RawUsage>();
+    // Subagents by the id of the Task call that started them, for the inspector.
+    const agents = new Map<string, string>();
+    // Background tasks by id, for the inspector.
+    const tasks = new Map<string, string>();
+    // Older CLIs don't say when they're idle; for them, a result is the end.
+    let sawState = false;
+    const inspect = (u: InspectUpdate) => (proc.turn ? proc.turn.sink.inspect(u) : proc.pending.push(u));
+    const event = (kind: InspectEvent["kind"], text: string, detail?: string) => inspect({ event: { at: Date.now(), kind, text, detail } });
+    // Anything a turn says starts one when none is current: the agent carries on by itself.
+    const turn = (): Turn => proc.turn || this.agentTurn(sessionId, proc);
+    for await (const m of q) {
+      switch (m.type) {
+        case "system":
+          if (m.subtype === "init") {
+            const t = turn();
+            t.sink.providerSessionId(m.session_id);
+            t.sink.inspect({ setup: toSetup(m) });
+          } else if (m.subtype === "session_state_changed") {
+            sawState = true;
+            if (m.state === "running") turn();
+            else if (m.state === "idle" && !proc.background.length) proc.end();
+          } else if (m.subtype === "background_tasks_changed") {
+            this.setBackground(
+              sessionId,
+              proc,
+              m.tasks.filter((t) => !t.ambient).map((t) => ({ id: t.task_id, description: t.description })),
+            );
+          } else if (m.subtype === "task_started") {
+            tasks.set(m.task_id, m.description);
+          } else if (m.subtype === "compact_boundary") {
+            const c = m.compact_metadata;
+            const after = c.post_tokens !== undefined ? ` to ${c.post_tokens.toLocaleString()}` : "";
+            event("compact", `Compacted (${c.trigger}) from ${c.pre_tokens.toLocaleString()}${after} tokens`);
+          } else if (m.subtype === "api_retry") {
+            const why = m.error_status !== null ? `HTTP ${m.error_status}` : "no response";
+            event("retry", `API retry ${m.attempt} of ${m.max_retries} after ${why}, waiting ${durationLabel(m.retry_delay_ms)}`);
+          } else if (m.subtype === "hook_response") {
+            // Hooks run on every prompt and tool call; only the ones with something to say are worth a row.
+            const out = [m.stderr, m.stdout, m.output].find((x) => x && x.trim());
+            if (out || m.outcome !== "success") event("hook", `Hook ${m.hook_name}: ${m.outcome}`, out ? str(out, 400) : undefined);
+          } else if (m.subtype === "permission_denied") {
+            event("denied", `Denied ${m.tool_name} without asking`, m.decision_reason || m.message);
+          } else if (m.subtype === "memory_recall") {
+            event("memory", `Recalled ${m.memories.length} ${m.memories.length === 1 ? "memory" : "memories"}`, m.memories.map((x) => x.path).join("\n"));
+          } else if (m.subtype === "task_notification") {
+            const name = (m.tool_use_id && agents.get(m.tool_use_id)) || tasks.get(m.task_id) || "Subagent";
+            const u = m.usage;
+            const stats = u ? `: ${u.tool_uses} tool calls, ${u.total_tokens.toLocaleString()} tokens, ${durationLabel(u.duration_ms)}` : "";
+            event("subagent", `${name} ${m.status}${stats}`, m.summary ? str(m.summary, 400) : undefined);
           }
-          case "assistant": {
-            // Every call goes to the inspector, a subagent's too; only the main agent's show in the chat.
-            const agent = m.parent_tool_use_id ? agents.get(m.parent_tool_use_id) || "Subagent" : undefined;
-            for (const block of m.message.content) {
-              if (block.type !== "tool_use") continue;
-              const toolInput = block.input as Record<string, unknown>;
-              sink.inspect({ tool: { ...toolRow(block.id, block.name, toolInput, target.cwd), name: block.name, agent, startedAt: Date.now() } });
-              if (block.name === "Task" || block.name === "Agent") agents.set(block.id, str(toolInput.description || toolInput.subagent_type) || "Subagent");
-            }
-            if (m.parent_tool_use_id) break;
-            for (const block of m.message.content) {
-              if (block.type === "text" && !streamed.has(m.message.id)) {
-                sink.text(wroteText ? `\n\n${block.text}` : block.text);
-                wroteText = true;
-              } else if (block.type === "tool_use") {
-                sink.tool(toolRow(block.id, block.name, block.input as Record<string, unknown>, target.cwd));
-                wroteText = false;
-              }
-            }
-            sink.checkpoint(m.uuid);
-            break;
+          break;
+        case "stream_event": {
+          const t = turn();
+          const e = m.event;
+          // Subagents spend tokens too, so they count before their text is skipped.
+          if (e.type === "message_start" || e.type === "message_delta") {
+            const key = m.parent_tool_use_id || "";
+            const before = e.type === "message_start" ? undefined : counted.get(key);
+            const now = mergeUsage(e.type === "message_start" ? e.message.usage : e.usage, before);
+            counted.set(key, now);
+            const [a, b] = [totals(now), totals(before)];
+            t.sink.tokens({ input: a.input - b.input, cachedInput: a.cachedInput - b.cachedInput, output: a.output - b.output });
           }
-          case "user": {
-            if (typeof m.message.content === "string") break;
-            for (const block of m.message.content) {
-              if (block.type !== "tool_result") continue;
-              sink.inspect({ tool: { id: block.tool_use_id, endedAt: Date.now(), ok: !block.is_error, resultTokens: approxTokens(block.content) } });
-              if (!m.parent_tool_use_id) sink.tool({ id: block.tool_use_id, ...toolResult(!!block.is_error, m.tool_use_result) } as ToolEvent);
-            }
-            break;
+          if (m.parent_tool_use_id) break;
+          if (e.type === "message_start") streamed.add(e.message.id);
+          else if (e.type === "content_block_start" && e.content_block.type === "text" && t.wroteText) t.sink.text("\n\n");
+          else if (e.type === "content_block_delta" && e.delta.type === "text_delta") {
+            t.sink.text(e.delta.text);
+            t.wroteText = true;
           }
-          case "rate_limit_event": {
-            this.snapshot = undefined;
-            for (const l of this.listeners) l();
-            const r = m.rate_limit_info;
-            if (r.status !== "allowed") {
-              // A fraction, 0.8 for 80%.
-              const pct = r.utilization !== undefined ? ` at ${Math.round(r.utilization * 100)}%` : "";
-              event("limit", `${r.status === "rejected" ? "Hit" : "Close to"} the ${(r.rateLimitType || "plan").replace(/_/g, " ")} limit${pct}`);
-            }
-            break;
+          break;
+        }
+        case "assistant": {
+          const t = turn();
+          // Every call goes to the inspector, a subagent's too; only the main agent's show in the chat.
+          const agent = m.parent_tool_use_id ? agents.get(m.parent_tool_use_id) || "Subagent" : undefined;
+          for (const block of m.message.content) {
+            if (block.type !== "tool_use") continue;
+            const toolInput = block.input as Record<string, unknown>;
+            t.sink.inspect({ tool: { ...toolRow(block.id, block.name, toolInput, cwd), name: block.name, agent, startedAt: Date.now() } });
+            if (block.name === "Task" || block.name === "Agent") agents.set(block.id, str(toolInput.description || toolInput.subagent_type) || "Subagent");
           }
-          case "result":
-            result = m.subtype === "success" && !m.is_error ? { ok: true } : { ok: false, error: resultError(m) };
-            sink.inspect({
-              turn: {
-                roundTrips: m.num_turns,
-                durationMs: m.duration_ms,
-                apiDurationMs: m.duration_api_ms,
-                costUsd: m.total_cost_usd,
-                models: Object.entries(m.modelUsage).map(([model, u]) => ({
-                  model,
-                  input: u.inputTokens,
-                  output: u.outputTokens,
-                  cacheRead: u.cacheReadInputTokens,
-                  cacheWrite: u.cacheCreationInputTokens,
-                  costUsd: u.costUSD,
-                })),
-              },
-            });
-            if (result.ok) event("turn", `Turn done: ${m.num_turns} ${m.num_turns === 1 ? "request" : "requests"} in ${durationLabel(m.duration_ms)}`);
-            else event("error", "Turn failed", result.error);
-            try {
-              const ctx = await q.getContextUsage();
-              sink.context({ usedTokens: ctx.totalTokens, limitTokens: ctx.maxTokens });
-              sink.inspect({ context: toContext(ctx) });
-            } catch {
-              // Context is a nice-to-have; a turn still counts without it.
+          if (m.parent_tool_use_id) break;
+          for (const block of m.message.content) {
+            if (block.type === "text" && !streamed.has(m.message.id)) {
+              t.sink.text(t.wroteText ? `\n\n${block.text}` : block.text);
+              t.wroteText = true;
+            } else if (block.type === "tool_use") {
+              t.sink.tool(toolRow(block.id, block.name, block.input as Record<string, unknown>, cwd));
+              t.wroteText = false;
             }
-            closeInput();
-            break;
+          }
+          t.sink.checkpoint(m.uuid);
+          break;
+        }
+        case "user": {
+          if (typeof m.message.content === "string") break;
+          const t = turn();
+          for (const block of m.message.content) {
+            if (block.type !== "tool_result") continue;
+            t.sink.inspect({ tool: { id: block.tool_use_id, endedAt: Date.now(), ok: !block.is_error, resultTokens: approxTokens(block.content) } });
+            if (!m.parent_tool_use_id) t.sink.tool({ id: block.tool_use_id, ...toolResult(!!block.is_error, m.tool_use_result) } as ToolEvent);
+          }
+          break;
+        }
+        case "rate_limit_event": {
+          this.snapshot = undefined;
+          for (const l of this.listeners) l();
+          const r = m.rate_limit_info;
+          if (r.status !== "allowed") {
+            // A fraction, 0.8 for 80%.
+            const pct = r.utilization !== undefined ? ` at ${Math.round(r.utilization * 100)}%` : "";
+            event("limit", `${r.status === "rejected" ? "Hit" : "Close to"} the ${(r.rateLimitType || "plan").replace(/_/g, " ")} limit${pct}`);
+          }
+          break;
+        }
+        case "result": {
+          const t = turn();
+          const result: TurnResult = m.subtype === "success" && !m.is_error ? { ok: true } : { ok: false, error: resultError(m) };
+          t.sink.inspect({
+            turn: {
+              roundTrips: m.num_turns,
+              durationMs: m.duration_ms,
+              apiDurationMs: m.duration_api_ms,
+              costUsd: m.total_cost_usd,
+              models: Object.entries(m.modelUsage).map(([model, u]) => ({
+                model,
+                input: u.inputTokens,
+                output: u.outputTokens,
+                cacheRead: u.cacheReadInputTokens,
+                cacheWrite: u.cacheCreationInputTokens,
+                costUsd: u.costUSD,
+              })),
+            },
+          });
+          if (result.ok) event("turn", `Turn done: ${m.num_turns} ${m.num_turns === 1 ? "request" : "requests"} in ${durationLabel(m.duration_ms)}`);
+          else event("error", "Turn failed", result.error);
+          try {
+            const ctx = await q.getContextUsage();
+            t.sink.context({ usedTokens: ctx.totalTokens, limitTokens: ctx.maxTokens });
+            t.sink.inspect({ context: toContext(ctx) });
+          } catch {
+            // Context is a nice-to-have; a turn still counts without it.
+          }
+          if (proc.turn === t) proc.turn = undefined;
+          t.finish(result);
+          if (!sawState && !proc.background.length) proc.end();
+          break;
         }
       }
-    })();
-    const done = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    this.active.set(target.sessionId, { query: q, done });
-    try {
-      await run;
-    } catch (err) {
-      result = { ok: false, error: err instanceof Error ? err.message : String(err) };
-    } finally {
-      closeInput();
-      this.active.delete(target.sessionId);
     }
-    return result;
+  }
+
+  /** Makes `turn` the process's current one, handing it what came in between turns. */
+  private attach(proc: Proc, turn: Turn): void {
+    proc.turn = turn;
+    for (const u of proc.pending.splice(0)) turn.sink.inspect(u);
+  }
+
+  /** A turn the agent started by itself, e.g. as background work finished. */
+  private agentTurn(sessionId: string, proc: Proc): Turn {
+    const turn = newTurn(NO_SINK);
+    proc.turn = turn;
+    for (const l of this.agentTurnListeners) {
+      l(sessionId, (sink) => {
+        turn.sink = sink;
+        this.attach(proc, turn);
+        return turn.done;
+      });
+    }
+    return turn;
+  }
+
+  private setBackground(sessionId: string, proc: Proc, tasks: BackgroundTask[]): void {
+    proc.background = tasks;
+    for (const l of this.backgroundListeners) l(sessionId, tasks.slice());
   }
 
   async interrupt(sessionId: string): Promise<void> {
-    const turn = this.active.get(sessionId);
-    if (!turn) return;
-    await turn.query.interrupt().catch(() => undefined);
+    const proc = this.procs.get(sessionId);
+    const turn = proc && proc.turn;
+    if (!proc || !turn) return;
+    await proc.query.interrupt().catch(() => undefined);
     // Give Claude a moment to write the session file, so the next turn resumes cleanly.
     const settled = await Promise.race([turn.done.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 5000))]);
-    if (!settled) turn.query.close();
+    if (!settled) proc.query.close();
   }
 
   dispose(): void {
-    for (const t of this.active.values()) t.query.close();
-    this.active.clear();
+    for (const p of this.procs.values()) p.query.close();
+    this.procs.clear();
     this.listeners.clear();
+    this.backgroundListeners.clear();
+    this.agentTurnListeners.clear();
   }
 
   private async ask(
