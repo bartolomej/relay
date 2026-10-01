@@ -353,6 +353,7 @@ body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-l
 
 .caret { display: inline-block; width: 7px; height: 14px; background: var(--fg); vertical-align: -2px; margin-left: 1px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+.thinking { display: flex; align-items: center; gap: 8px; color: var(--fg-muted); }
 
 .approval { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 8px; background: var(--wait-bg); border: 1px solid var(--wait-border); }
 .approval-title { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--wait); }

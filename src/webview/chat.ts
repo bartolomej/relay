@@ -45,7 +45,8 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
   }
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t) => tool(t, openable)).join("")}</div>` : "";
   const caret = m.streaming ? `<span class="caret"></span>` : "";
-  const text = m.text ? `<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : m.streaming ? `<div class="msg-text">${caret}</div>` : "";
+  // Before any text, the loader below the messages shows it's working.
+  const text = m.text ? `<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : "";
   const toolbar = m.streaming
     ? ""
     : `<div class="msg-tools">
@@ -294,6 +295,17 @@ function head(state: UiState, s: Session | undefined): string {
   </div>`;
 }
 
+/** While the turn has no text streaming: the model thinking, or a tool it called still running. */
+function loader(s: Session, messages: Message[]): string {
+  if (s.status !== "running") return "";
+  const last = messages[messages.length - 1];
+  if (last && last.role === "assistant" && last.text) return "";
+  // Codex never marks some tools done, so only the latest call counts.
+  const tools = last && last.role === "assistant" && last.tools ? last.tools : [];
+  const tool = tools.length > 0 && tools[tools.length - 1].ok === undefined;
+  return `<div class="thinking"><span class="status status-running"></span>${tool ? "Running…" : "Thinking…"}</div>`;
+}
+
 /** Messages waiting for the running turn to end, just above the composer. */
 function queued(s: Session): string {
   if (!s.queued.length) return "";
@@ -321,6 +333,6 @@ export function renderChat(state: UiState): string {
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
-      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${approval(s)}${questions(s)}</div>`;
+      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
   return `<div class="chat">${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }
