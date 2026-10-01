@@ -12,8 +12,9 @@ import { elapsed } from "./util";
 let state: UiState | undefined;
 let shellBuilt = false;
 /**
- * What each pane last rendered. A pane is only replaced when its HTML changes,
- * so another session streaming doesn't swap out the chat mid-scroll.
+ * What each pane last rendered. A pane is only patched when its HTML changes,
+ * and then in place, so another session streaming doesn't swap out the chat
+ * mid-scroll or the button being clicked.
  */
 let leftHtml = "";
 let chatHtml = "";
@@ -41,17 +42,27 @@ function buildShell(layout: UiState["layout"]): void {
   shellBuilt = true;
 }
 
+/**
+ * Brings a pane in line with `html`, reusing the nodes that can stay, so the
+ * element under the mouse, its tooltip and a press in progress survive.
+ */
+function patch(el: HTMLElement, html: string): void {
+  const next = document.createElement("template");
+  next.innerHTML = html;
+  morphChildren(el, next.content);
+}
+
 function renderLeft(s: UiState): void {
   const left = document.getElementById("left");
   const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s)) : renderSessions(s)}`;
   if (!left || html === leftHtml) return;
-  // The redraw replaces the search box; keep typing in it where the cursor was.
+  // A redraw that moves the search box replaces it; keep typing in it where the cursor was.
   const active = document.activeElement;
   const at = active instanceof HTMLInputElement && active.classList.contains("past-search") ? active.selectionStart : undefined;
-  left.innerHTML = html;
+  patch(left, html);
   leftHtml = html;
   const search = at === undefined ? null : left.querySelector<HTMLInputElement>(".past-search");
-  if (search) {
+  if (search && document.activeElement !== search) {
     search.focus();
     const end = at === null || at === undefined ? search.value.length : at;
     search.setSelectionRange(end, end);
@@ -70,13 +81,13 @@ function renderTask(s: UiState, redrawFields = false): void {
   const head = document.getElementById("task-head");
   const headHtml = renderTaskHead(s);
   if (head && headHtml !== taskHeadHtml) {
-    head.innerHTML = headHtml;
+    patch(head, headHtml);
     taskHeadHtml = headHtml;
   }
   const panel = document.getElementById("task-panel");
   const panelHtml = renderTaskPanel(s);
   if (panel && panelHtml !== taskPanelHtml) {
-    panel.innerHTML = panelHtml;
+    patch(panel, panelHtml);
     taskPanelHtml = panelHtml;
   }
 }
@@ -106,9 +117,7 @@ function render(): void {
 
   // Patched in place rather than replaced: a new scroll box would cut off the
   // momentum of a scroll that is still going.
-  const next = document.createElement("template");
-  next.innerHTML = html;
-  morphChildren(chat, next.content);
+  patch(chat, html);
   chatHtml = html;
   restoreTyped(typing);
 

@@ -1,4 +1,4 @@
-import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId } from "../api/types";
+import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId, type SessionOptions } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
 import { composerOptions, local, post, selected } from "./state";
@@ -17,16 +17,24 @@ export function renderComposer(): string {
   </div>`;
 }
 
+/** What the chips last rendered; they're only redrawn when that changes, so an open dropdown stays open while sessions stream. */
+let chipsHtml = "";
+
+/** The provider's models, plus the session's own model if the live catalogue no longer lists it, so it stays selectable. */
+function modelsFor(state: UiState, opts: SessionOptions): ModelInfo[] {
+  const provider = state.providers.find((p) => p.id === opts.provider);
+  const models: ModelInfo[] = provider ? provider.models.slice() : [];
+  if (opts.model && !models.some((m) => m.id === opts.model)) models.unshift({ id: opts.model, label: opts.model, efforts: [] });
+  return models;
+}
+
 export function refreshChips(state: UiState): void {
   const el = document.getElementById("chips");
   if (!el) return;
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (input) input.placeholder = placeholder(state);
   const opts = composerOptions(state);
-  const provider = state.providers.find((p) => p.id === opts.provider);
-  // Keep a session's model selectable even if the live catalogue no longer lists it.
-  const models: ModelInfo[] = provider ? provider.models.slice() : [];
-  if (opts.model && !models.some((m) => m.id === opts.model)) models.unshift({ id: opts.model, label: opts.model, efforts: [] });
+  const models = modelsFor(state, opts);
   const model = models.find((m) => m.id === opts.model);
   const efforts: Effort[] = model ? model.efforts : [];
 
@@ -54,32 +62,38 @@ export function refreshChips(state: UiState): void {
   const action = working && isActive(working)
     ? `<button class="send stop" id="send" title="Stop (Esc)" aria-label="Stop the agent">${icons.stop}</button>`
     : `<button class="send" id="send" title="Send (↵)" aria-label="Send">${icons.send}</button>`;
-  el.innerHTML = `${providerSel}${modelSel}${effortSel}${modeSel}<span class="grow"></span>
+  const html = `${providerSel}${modelSel}${effortSel}${modeSel}<span class="grow"></span>
     <button class="icon-btn" title="Attach" aria-label="Attach file">${icons.attach}</button>
     ${action}`;
+  if (html === chipsHtml) return;
+  el.innerHTML = html;
+  chipsHtml = html;
+}
 
-  const onChange = (id: string, fn: (v: string) => void) => {
-    const s = document.getElementById(id) as HTMLSelectElement | null;
-    if (s) s.addEventListener("change", () => fn(s.value));
-  };
-  onChange("chip-provider", (v) => {
-    const p = state.providers.find((x) => x.id === (v as ProviderId));
-    opts.provider = v as ProviderId;
-    if (p && p.models.length && !p.models.some((m) => m.id === opts.model)) pickModel(opts, p.models[0]);
-    refreshChips(state);
-  });
-  onChange("chip-model", (v) => {
-    const m = models.find((x) => x.id === v);
-    if (m) pickModel(opts, m);
-    refreshChips(state);
-  });
-  onChange("chip-effort", (v) => (opts.effort = v as Effort));
-  onChange("chip-mode", (v) => {
-    local.mode = v as MessageMode;
-    refreshChips(state);
-  });
-  const send = document.getElementById("send");
-  if (send) send.addEventListener("click", () => (working && isActive(working) ? stop(working.id) : submit(state)));
+/** A chip changed: the composer's options follow it. */
+function onChipChange(state: UiState, chip: HTMLSelectElement): void {
+  const opts = composerOptions(state);
+  const v = chip.value;
+  switch (chip.id) {
+    case "chip-provider": {
+      const p = state.providers.find((x) => x.id === (v as ProviderId));
+      opts.provider = v as ProviderId;
+      if (p && p.models.length && !p.models.some((m) => m.id === opts.model)) pickModel(opts, p.models[0]);
+      break;
+    }
+    case "chip-model": {
+      const m = modelsFor(state, opts).find((x) => x.id === v);
+      if (m) pickModel(opts, m);
+      break;
+    }
+    case "chip-effort":
+      opts.effort = v as Effort;
+      break;
+    case "chip-mode":
+      local.mode = v as MessageMode;
+      break;
+  }
+  refreshChips(state);
 }
 
 /** Switches model and keeps the effort if the new model accepts it, else its default. */
@@ -158,6 +172,21 @@ function stop(sessionId: string): void {
 }
 
 export function bindComposerOnce(getState: () => UiState | undefined): void {
+  // Bound once on the chips' box, so redrawing the chips needs no new listeners and these always see the latest state.
+  const chips = document.getElementById("chips");
+  if (chips) {
+    chips.addEventListener("change", (e) => {
+      const s = getState();
+      if (s && e.target instanceof HTMLSelectElement) onChipChange(s, e.target);
+    });
+    chips.addEventListener("click", (e) => {
+      const s = getState();
+      if (!s || !(e.target as HTMLElement).closest("#send")) return;
+      const working = selected(s);
+      if (working && isActive(working)) stop(working.id);
+      else submit(s);
+    });
+  }
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (!input) return;
   input.addEventListener("input", () => autosize(input));
