@@ -334,6 +334,9 @@ export class ClaudeAdapter implements ProviderAdapter {
     const agents = new Map<string, string>();
     // Background tasks by id, for the inspector.
     const tasks = new Map<string, string>();
+    // Shell commands by the id of the Bash call that ran them, then by the task they turned into.
+    const commands = new Map<string, string>();
+    const taskCommands = new Map<string, string>();
     // Older CLIs don't say when they're idle; for them, a result is the end.
     let sawState = false;
     const inspect = (u: InspectUpdate) => (proc.turn ? proc.turn.sink.inspect(u) : proc.pending.push(u));
@@ -352,13 +355,19 @@ export class ClaudeAdapter implements ProviderAdapter {
             if (m.state === "running") turn();
             else if (m.state === "idle" && !proc.background.length) proc.end();
           } else if (m.subtype === "background_tasks_changed") {
-            this.setBackground(
-              sessionId,
-              proc,
-              m.tasks.filter((t) => !t.ambient).map((t) => ({ id: t.task_id, description: t.description })),
-            );
+            const before = new Map(proc.background.map((t) => [t.id, t]));
+            const next = m.tasks
+              .filter((t) => !t.ambient)
+              .map((t): BackgroundTask => before.get(t.task_id) || { id: t.task_id, description: t.description, command: taskCommands.get(t.task_id), startedAt: Date.now() });
+            this.setBackground(sessionId, proc, next);
           } else if (m.subtype === "task_started") {
             tasks.set(m.task_id, m.description);
+            // Usually comes just after the task joined the background list, which only says what it's for.
+            const command = m.tool_use_id ? commands.get(m.tool_use_id) : undefined;
+            if (command) taskCommands.set(m.task_id, command);
+            if (command && proc.background.some((t) => t.id === m.task_id)) {
+              this.setBackground(sessionId, proc, proc.background.map((t) => (t.id === m.task_id ? { ...t, command } : t)));
+            }
           } else if (m.subtype === "compact_boundary") {
             const c = m.compact_metadata;
             const after = c.post_tokens !== undefined ? ` to ${c.post_tokens.toLocaleString()}` : "";
@@ -411,6 +420,7 @@ export class ClaudeAdapter implements ProviderAdapter {
             const toolInput = block.input as Record<string, unknown>;
             t.sink.inspect({ tool: { ...toolRow(block.id, block.name, toolInput, cwd), name: block.name, agent, startedAt: Date.now() } });
             if (block.name === "Task" || block.name === "Agent") agents.set(block.id, str(toolInput.description || toolInput.subagent_type) || "Subagent");
+            if (block.name === "Bash" && typeof toolInput.command === "string") commands.set(block.id, toolInput.command);
           }
           if (m.parent_tool_use_id) break;
           for (const block of m.message.content) {

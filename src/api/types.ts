@@ -134,6 +134,9 @@ export interface BackgroundTask {
   id: string;
   /** What the agent said it's for, e.g. "Run the eval". */
   description: string;
+  /** The shell command, for a command; a subagent has none. */
+  command?: string;
+  startedAt: number;
 }
 
 /** How often a scheduled task runs, always at `time`. */

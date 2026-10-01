@@ -1,4 +1,4 @@
-import { hasBackground, isActive, type Session } from "../api/types";
+import { hasBackground, isActive, type BackgroundTask, type Session } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
 import { local } from "./state";
@@ -109,8 +109,24 @@ function timeCell(s: Session, now: number): string {
 export function backgroundTag(s: Session, cls = ""): string {
   if (!s.background || !s.background.length) return "";
   const n = s.background.length;
-  const title = `Running in the background; the agent picks up again as it finishes:\n${s.background.map((t) => `• ${t.description}`).join("\n")}`;
+  const list = s.background.map((t) => `• ${t.description}${t.command ? `: ${t.command}` : ""}`).join("\n");
+  const title = `Running in the background; the agent picks up again as it finishes:\n${list}`;
   return `<span class="mode-tag ${cls}" title="${esc(title)}">Background${n > 1 ? ` · ${n}` : ""}</span>`;
+}
+
+/** Hangs off its session like a fork, but dashed: it's work, not a chat. */
+function backgroundRow(t: BackgroundTask, now: number): string {
+  const title = `Running in the background; the agent picks up again when it finishes.\n${t.description}${t.command ? `\n${t.command}` : ""}`;
+  return `<div class="child"><div class="branch"></div>
+    <div class="bg-task" title="${esc(title)}">
+      <div class="bg-task-row">
+        ${t.command ? icons.terminal : icons.spawn}
+        <span class="ellipsis grow">${esc(t.description || t.command || "Background task")}</span>
+        <span class="bg-task-time">${esc(elapsed(t.startedAt, now))}</span>
+      </div>
+      ${t.command && t.command !== t.description ? `<div class="bg-task-cmd mono ellipsis">${esc(t.command)}</div>` : ""}
+    </div>
+  </div>`;
 }
 
 function card(state: UiState, node: Node, depth: number): string {
@@ -134,10 +150,12 @@ function card(state: UiState, node: Node, depth: number): string {
          </div>`
       : "";
   const visibleChildren = node.children.filter((c) => state.showAllPast || !completed(c));
-  const children = visibleChildren.length
+  const background = s.background || [];
+  const children = visibleChildren.length || background.length
     ? `<div class="children">
+         ${background.map((t) => backgroundRow(t, state.now)).join("")}
          ${visibleChildren.map((c) => `<div class="child"><div class="branch"></div>${card(state, c, depth + 1)}</div>`).join("")}
-         ${isSel ? `<div class="child"><div class="branch"></div><button class="fork-slot" data-action="fork" data-id="${esc(s.id)}">${icons.plus} Fork from latest message</button></div>` : ""}
+         ${isSel && visibleChildren.length ? `<div class="child"><div class="branch"></div><button class="fork-slot" data-action="fork" data-id="${esc(s.id)}">${icons.plus} Fork from latest message</button></div>` : ""}
        </div>`
     : "";
   const icon = statusIcon(s);
@@ -150,7 +168,6 @@ function card(state: UiState, node: Node, depth: number): string {
     <div class="card-meta">
       ${providerIcon(state, s)}
       ${s.scheduledTaskId ? `<span class="mode-tag card-tag">Scheduled</span>` : ""}
-      ${backgroundTag(s, "card-tag")}
       <span class="ellipsis grow">${esc(forkNote)}${esc(modelLabel(state, s))} · ${esc(s.options.effort)}</span>
       ${approvalNote}
       <span class="card-tools">

@@ -170,6 +170,14 @@ textarea, input, select { font: inherit; color: inherit; }
 }
 .fork-slot:hover { color: var(--fg); border-color: var(--fg-muted); }
 .fork-slot svg { width: 11px; height: 11px; }
+.bg-task {
+  flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; border-radius: 5px;
+  border: 1px dashed var(--run-border); color: var(--fg); font-size: 11.5px;
+}
+.bg-task-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bg-task-row svg { width: 11px; height: 11px; flex-shrink: 0; color: var(--run); }
+.bg-task-time { font-size: 11px; flex-shrink: 0; color: var(--run); font-variant-numeric: tabular-nums; }
+.bg-task-cmd { padding-left: 17px; font-size: 11px; color: var(--fg-muted); }
 
 .older-toggle { height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 4px; border-radius: 4px; color: var(--fg-muted); font-size: 11.5px; text-align: left; }
 .older-toggle:hover { background: var(--bg-hover); color: var(--fg); }

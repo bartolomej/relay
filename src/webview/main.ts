@@ -1,4 +1,4 @@
-import { minutesLabel, type ApprovalDecision } from "../api/types";
+import { hasBackground, minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
@@ -242,7 +242,7 @@ window.addEventListener("focus", () => {
 // Ticks the clocks on cards between state pushes.
 setInterval(() => {
   if (!state) return;
-  if (!state.sessions.some((s) => s.status === "running")) return;
+  if (!state.sessions.some((s) => s.status === "running" || hasBackground(s))) return;
   state.now = Date.now();
   renderLeft(state);
   const now = state.now;
