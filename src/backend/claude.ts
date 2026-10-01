@@ -313,10 +313,12 @@ export class ClaudeAdapter implements ProviderAdapter {
         failure = err instanceof Error ? err.message : String(err);
       })
       .finally(() => {
+        // Ended by us once Claude went idle, so a turn still open had nothing more coming.
+        const asked = ended;
         ended = true;
         wake();
         if (this.procs.get(target.sessionId) === proc) this.procs.delete(target.sessionId);
-        if (proc.turn) proc.turn.finish({ ok: false, error: failure || "Claude stopped without finishing the turn." });
+        if (proc.turn) proc.turn.finish(failure || !asked ? { ok: false, error: failure || "Claude stopped without finishing the turn." } : { ok: true });
         proc.turn = undefined;
         if (proc.background.length) this.setBackground(target.sessionId, proc, []);
       });
@@ -342,8 +344,17 @@ export class ClaudeAdapter implements ProviderAdapter {
     const inspect = (u: InspectUpdate) => (proc.turn ? proc.turn.sink.inspect(u) : proc.pending.push(u));
     const event = (kind: InspectEvent["kind"], text: string, detail?: string) => inspect({ event: { at: Date.now(), kind, text, detail } });
     // Anything a turn says starts one when none is current: the agent carries on by itself.
-    const turn = (): Turn => proc.turn || this.agentTurn(sessionId, proc);
+    let last = "";
+    const turn = (): Turn => {
+      if (proc.turn) return proc.turn;
+      const t = this.agentTurn(sessionId, proc);
+      event("turn", `Claude carried on by itself, starting with ${last}`);
+      return t;
+    };
     for await (const m of q) {
+      last = [m.type, "subtype" in m ? m.subtype : undefined, m.type === "stream_event" ? m.event.type : undefined, "state" in m ? m.state : undefined]
+        .filter(Boolean)
+        .join(" ");
       switch (m.type) {
         case "system":
           if (m.subtype === "init") {
