@@ -67,12 +67,14 @@ interface Turn {
   done: Promise<TurnResult>;
   finish: (result: TurnResult) => void;
   wroteText: boolean;
+  /** Started by the agent rather than by a message of the user's. */
+  agent: boolean;
 }
 
-function newTurn(sink: TurnSink): Turn {
+function newTurn(sink: TurnSink, agent = false): Turn {
   let finish: (result: TurnResult) => void = () => {};
   const done = new Promise<TurnResult>((r) => (finish = r));
-  return { sink, done, finish, wroteText: false };
+  return { sink, done, finish, wroteText: false, agent };
 }
 
 /** Where an agent turn's events go until Relay takes it on. */
@@ -101,6 +103,8 @@ interface Proc {
   send: (text: string) => void;
   /** Closes input; the process exits once it has settled. */
   end: () => void;
+  /** Input is closed, so a message sent now would never reach Claude. */
+  ending: boolean;
   turn: Turn | undefined;
   background: BackgroundTask[];
   /** Inspector updates that came between turns, for the next one. */
@@ -225,8 +229,9 @@ export class ClaudeAdapter implements ProviderAdapter {
     const settings = JSON.stringify([target.cwd, effort, !!target.readOnly, target.browserUrl]);
     let proc = this.procs.get(target.sessionId);
     // A turn the agent started by itself goes first.
-    while (proc && proc.turn) {
-      await proc.turn.done;
+    // So does one that's on its way out: its input is closed.
+    while (proc && (proc.turn || proc.ending)) {
+      await (proc.turn ? proc.turn.done : proc.done);
       proc = this.procs.get(target.sessionId);
     }
     if (proc && proc.settings !== settings) {
@@ -300,8 +305,10 @@ export class ClaudeAdapter implements ProviderAdapter {
       },
       end: () => {
         ended = true;
+        proc.ending = true;
         wake();
       },
+      ending: false,
       turn: undefined,
       background: [],
       pending: [],
@@ -313,12 +320,12 @@ export class ClaudeAdapter implements ProviderAdapter {
         failure = err instanceof Error ? err.message : String(err);
       })
       .finally(() => {
-        // Ended by us once Claude went idle, so a turn still open had nothing more coming.
-        const asked = ended;
+        // Ended by us once Claude went idle, so a turn the agent opened since had nothing more coming.
+        const settled = !failure && proc.ending && !!proc.turn && proc.turn.agent;
         ended = true;
         wake();
         if (this.procs.get(target.sessionId) === proc) this.procs.delete(target.sessionId);
-        if (proc.turn) proc.turn.finish(failure || !asked ? { ok: false, error: failure || "Claude stopped without finishing the turn." } : { ok: true });
+        if (proc.turn) proc.turn.finish(settled ? { ok: true } : { ok: false, error: failure || "Claude stopped without finishing the turn." });
         proc.turn = undefined;
         if (proc.background.length) this.setBackground(target.sessionId, proc, []);
       });
@@ -512,7 +519,7 @@ export class ClaudeAdapter implements ProviderAdapter {
 
   /** A turn the agent started by itself, e.g. as background work finished. */
   private agentTurn(sessionId: string, proc: Proc): Turn {
-    const turn = newTurn(NO_SINK);
+    const turn = newTurn(NO_SINK, true);
     proc.turn = turn;
     for (const l of this.agentTurnListeners) {
       l(sessionId, (sink) => {
