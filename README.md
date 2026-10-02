@@ -73,6 +73,10 @@ Keep typing while the agent works. **↵** queues the message for when the turn 
 
 ![A queued message above the message box](img/queue.png)
 
+### @ for files
+
+Type **@** and start typing to fuzzy-search the project's files. Spaces are fine, so `comp ts` finds `src/webview/composer.ts`. **↵** or **Tab** puts the file's relative path in the message, and **Esc** closes the search. Files ignored by git are included. Dependency and cache folders such as `node_modules` and virtualenvs are left out.
+
 ### Plan limits at a glance
 
 **Status** shows every limit Claude and Codex report: the 5-hour session, weekly limits, per-model limits, extra usage and credits, each with time until reset. Bars turn amber at 75% and red at 90%.
