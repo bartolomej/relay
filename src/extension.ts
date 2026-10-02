@@ -119,7 +119,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     level: () => vscode.workspace.getConfiguration("relay").get<NotifyLevel>("notifications", "all"),
   });
 
+  // One click from the status bar opens Relay as an editor tab.
+  const launcher = vscode.window.createStatusBarItem("relay.launcher", vscode.StatusBarAlignment.Left, 100);
+  launcher.name = "Relay";
+  launcher.text = "$(comment-discussion) Relay";
+  launcher.tooltip = "Open Relay as an editor tab";
+  launcher.command = "relay.openAsTab";
+  launcher.show();
+
   context.subscriptions.push(
+    launcher,
     attention,
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewType, sidebar, {
       webviewOptions: { retainContextWhenHidden: true },

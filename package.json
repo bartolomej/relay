@@ -13,7 +13,8 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:.relay/schedules.json"
+    "workspaceContains:.relay/schedules.json",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
