@@ -17,8 +17,16 @@ let warnedBadKey = false;
 
 type Tiers = Record<string, Partial<Record<Difficulty, { model?: string; effort?: string }>>>;
 
-export function initModelHints(storage: vscode.SecretStorage): void {
-  secrets = storage;
+/** Keeps the `relay.modelHints` context key in step, for the sidebar's toggle. */
+export function initModelHints(context: vscode.ExtensionContext): void {
+  secrets = context.secrets;
+  const sync = () => void vscode.commands.executeCommand("setContext", "relay.modelHints", modelHintsEnabled());
+  sync();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("relay.modelHints")) sync();
+    }),
+  );
 }
 
 export function modelHintsEnabled(): boolean {

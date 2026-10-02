@@ -44,8 +44,6 @@ export type ToWebview =
   | { type: "focusInput" }
   /** Added to the end of the message box, e.g. a note from the browser. */
   | { type: "insertText"; text: string }
-  /** Fills the new-task form, e.g. from a session's messages. */
-  | { type: "taskDraft"; draft: TaskInput }
   /** Files matching an @ search in the message box, answering the `searchFiles` with this `seq`. */
   | { type: "fileResults"; seq: number; paths: string[] }
   /** Answers the `suggestModel` with this `seq`; no suggestion when Jev couldn't give one. */
@@ -66,7 +64,6 @@ export type FromWebview =
   | { type: "pauseTask"; taskId: string; paused: boolean }
   | { type: "deleteTask"; taskId: string }
   /** Opens a new task drafted from the session's messages and options. */
-  | { type: "scheduleSession"; sessionId: string }
   /** `browser` lets a new session's agent drive Relay's browser from its first turn. */
   | { type: "send"; sessionId?: string; text: string; options: SessionOptions; delivery: Delivery; worktree?: boolean; browser?: boolean; mode?: MessageMode }
   | { type: "toggleBrowserAccess"; sessionId: string }

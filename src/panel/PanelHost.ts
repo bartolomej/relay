@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
-import { DEFAULT_RUN_LIMIT_MS, DEFAULT_SCHEDULE, taskName } from "../api/schedule";
-import { isActive, minutesLabel, workDir, type Answers, type ProviderId, type TaskInput } from "../api/types";
+import { taskName } from "../api/schedule";
+import { isActive, minutesLabel, workDir, type Answers, type ProviderId } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
 import { cleanTaskInput, type Scheduler } from "../backend/scheduler";
 import { isGitRepo } from "../backend/worktree";
@@ -223,9 +223,6 @@ export class PanelHost implements vscode.Disposable {
       case "deleteTask":
         await this.deleteTask(m.taskId);
         return;
-      case "scheduleSession":
-        await this.scheduleSession(m.sessionId);
-        return;
       case "send": {
         let id = m.sessionId;
         if (!id) {
@@ -364,25 +361,6 @@ export class PanelHost implements vscode.Disposable {
       "Delete",
     );
     if (pick) await this.scheduler.remove(taskId);
-  }
-
-  /** A new task with the session's requests as its prompt, oldest first, for the user to trim into one. */
-  private async scheduleSession(sessionId: string): Promise<void> {
-    const session = (await this.api.listSessions()).find((s) => s.id === sessionId);
-    if (!this.scheduler || !session) return;
-    const asked = (await this.api.getMessages(sessionId)).filter((m) => m.role === "user" && m.text.trim()).map((m) => m.text.trim());
-    const draft: TaskInput = {
-      name: session.title,
-      prompt: asked.join("\n\n"),
-      options: { ...session.options },
-      schedule: { ...DEFAULT_SCHEDULE },
-      useWorktree: this.gitRepo,
-      runLimitMs: DEFAULT_RUN_LIMIT_MS,
-    };
-    this.showScheduled = true;
-    this.selectedTaskId = undefined;
-    await this.push();
-    await this.post({ type: "taskDraft", draft });
   }
 
   /** A subsession with the other provider's default model; the drafted message waits for the user to send it. */

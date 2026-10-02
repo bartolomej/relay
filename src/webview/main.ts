@@ -3,8 +3,8 @@ import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft } from "./composer";
-import { remoteToggle, renderSessions } from "./sessions";
-import { loadTaskDraft, renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
+import { modelHintsToggle, remoteToggle, renderSessions } from "./sessions";
+import { renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
 import { receiveHint } from "./hints";
 import { showFileResults } from "./mentions";
@@ -56,7 +56,7 @@ function patch(el: HTMLElement, html: string): void {
 
 function renderLeft(s: UiState): void {
   const left = document.getElementById("left");
-  const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s)) : renderSessions(s)}`;
+  const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s) + modelHintsToggle(s)) : renderSessions(s)}`;
   if (!left || html === leftHtml) return;
   // A redraw that moves the search box replaces it; keep typing in it where the cursor was.
   const active = document.activeElement;
@@ -222,9 +222,6 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
     if (input) input.focus();
   } else if (e.data.type === "insertText") {
     insertText(e.data.text);
-  } else if (e.data.type === "taskDraft") {
-    loadTaskDraft(e.data.draft);
-    if (state) renderTask(state, true);
   } else if (e.data.type === "fileResults") {
     showFileResults(e.data.seq, e.data.paths);
   } else if (e.data.type === "modelSuggestion") {
@@ -304,9 +301,6 @@ app.addEventListener("click", (e) => {
       break;
     case "deleteTask":
       post({ type: "deleteTask", taskId: target.dataset.task || "" });
-      break;
-    case "scheduleSession":
-      post({ type: "scheduleSession", sessionId: id });
       break;
     case "fork":
       e.stopPropagation();

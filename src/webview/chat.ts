@@ -217,20 +217,12 @@ function secondOpinion(state: UiState, s: Session): string {
   return `<button class="icon-btn" data-action="secondOpinion" data-id="${esc(s.id)}" title="${esc(title)}" aria-label="${esc(`Second opinion from ${other.label}`)}">${icons.opinion}</button>`;
 }
 
-/**
- * A run of a scheduled task links back to the task; any other session can be
- * turned into one, its messages drafted as the task's prompt.
- */
-function scheduleButton(state: UiState, s: Session): string {
-  if (state.remote) return "";
-  if (s.scheduledTaskId) {
-    const task = state.tasks.find((t) => t.id === s.scheduledTaskId);
-    const title = task ? `Started by the scheduled task “${taskName(task)}”. Click to open it.` : "Started by a scheduled task that has since been deleted.";
-    return `<button class="mode-tag task-tag" data-action="selectTask" data-task="${esc(task ? task.id : "")}" title="${esc(title)}" ${task ? "" : "disabled"}>Scheduled</button>`;
-  }
-  if (!state.messages.some((m) => m.role === "user")) return "";
-  const title = "Schedule as a repeating task: opens a new task with this session's messages as its prompt";
-  return `<button class="icon-btn" data-action="scheduleSession" data-id="${esc(s.id)}" title="${title}" aria-label="Schedule as a repeating task">${icons.calendar}</button>`;
+/** A run of a scheduled task links back to the task. */
+function scheduledTag(state: UiState, s: Session): string {
+  if (state.remote || !s.scheduledTaskId) return "";
+  const task = state.tasks.find((t) => t.id === s.scheduledTaskId);
+  const title = task ? `Started by the scheduled task “${taskName(task)}”. Click to open it.` : "Started by a scheduled task that has since been deleted.";
+  return `<button class="mode-tag task-tag" data-action="selectTask" data-task="${esc(task ? task.id : "")}" title="${esc(title)}" ${task ? "" : "disabled"}>Scheduled</button>`;
 }
 
 /** Swaps the chat for the inspector. Only Claude reports what it loaded and how a turn went. */
@@ -250,19 +242,9 @@ function browserToggle(s: Session | undefined): string {
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleBrowserAccess" data-id="${s ? esc(s.id) : ""}" title="${esc(title)}" aria-label="Let the agent use Relay's browser" aria-pressed="${on}">${icons.browserAgent}</button>`;
 }
 
-/** On: Jev suggests a model for each message, next to the model dropdown. */
-function modelHintsToggle(state: UiState): string {
-  if (state.modelHints === undefined) return "";
-  const on = state.modelHints;
-  const title = on
-    ? "Jev suggests a model for each message from how hard it looks; ⇧⌘↵ sends with the suggestion. Click to turn off."
-    : "Let Jev suggest a model for each message: a quick one for simple changes, the strongest for open-ended work. Asks for your TypeSafe API key the first time; what you type is sent to TypeSafe.";
-  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleModelHints" title="${esc(title)}" aria-label="Model suggestions from Jev" aria-pressed="${on}">${icons.gauge}</button>`;
-}
-
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
-    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${modelHintsToggle(state)}${keepAwakeToggle(state)}</div>`;
+    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${keepAwakeToggle(state)}</div>`;
   }
   const status =
     s.status === "running"
@@ -295,10 +277,9 @@ function head(state: UiState, s: Session | undefined): string {
     ${inspectToggle(state, s)}
     ${worktreeToggle(state, s)}
     ${browserToggle(s)}
-    ${modelHintsToggle(state)}
     ${keepAwakeToggle(state)}
     ${secondOpinion(state, s)}
-    ${scheduleButton(state, s)}
+    ${scheduledTag(state, s)}
     <button class="icon-btn" data-action="fork" data-id="${esc(s.id)}" title="Fork session" aria-label="Fork session">${icons.fork}</button>
     ${isActive(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop" aria-label="Stop session">${icons.stop}</button>` : ""}
     ${!isActive(s) && hasBackground(s) ? `<button class="icon-btn" data-action="stop" data-id="${esc(s.id)}" title="Stop the background work" aria-label="Stop the background work">${icons.stop}</button>` : ""}

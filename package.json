@@ -78,6 +78,13 @@
         "category": "Relay"
       },
       {
+        "command": "relay.toggleModelHints",
+        "title": "Toggle Model Suggestions",
+        "category": "Relay",
+        "icon": "$(dashboard)",
+        "toggled": "relay.modelHints"
+      },
+      {
         "command": "relay.setJevKey",
         "title": "Set Jev API Key",
         "category": "Relay"
@@ -114,6 +121,11 @@
           "command": "relay.remoteOff",
           "when": "view == relay.sidebar && relay.remoteOn",
           "group": "navigation@5"
+        },
+        {
+          "command": "relay.toggleModelHints",
+          "when": "view == relay.sidebar",
+          "group": "navigation@6"
         }
       ],
       "commandPalette": [

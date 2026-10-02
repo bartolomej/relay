@@ -23,7 +23,7 @@ Relay drives the `claude` and `codex` CLIs you already have, so your logins, set
 
 ### The right model for each message
 
-Turn on **model suggestions** and, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet, Opus and Fable for Claude. Set your own in `relay.modelHintModels`.
+Click the gauge next to **New** to turn on model suggestions. Then, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet, Opus and Fable for Claude. Set your own in `relay.modelHintModels`.
 
 Relay asks for your TypeSafe API key the first time and keeps it in the system keychain. **Relay: Set Jev API Key** changes it. The messages you type are sent to TypeSafe for the rating.
 

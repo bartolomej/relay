@@ -205,6 +205,16 @@ export function remoteToggle(state: UiState): string {
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleRemote" title="${title}" aria-label="Remote access" aria-pressed="${on}">${icons.phone}</button>`;
 }
 
+export /** On: Jev suggests a model for each message, next to the model dropdown. */
+function modelHintsToggle(state: UiState): string {
+  if (state.modelHints === undefined) return "";
+  const on = state.modelHints;
+  const title = on
+    ? "Jev suggests a model for each message from how hard it looks; ⇧⌘↵ sends with the suggestion. Click to turn off."
+    : "Let Jev suggest a model for each message: a quick one for simple changes, the strongest for open-ended work. Asks for your TypeSafe API key the first time; what you type is sent to TypeSafe.";
+  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleModelHints" title="${esc(title)}" aria-label="Model suggestions from Jev" aria-pressed="${on}">${icons.gauge}</button>`;
+}
+
 export function renderSessions(state: UiState): string {
   const cutoff = state.now - state.pastWindowMs;
   const working: Node[] = [];
@@ -239,6 +249,7 @@ export function renderSessions(state: UiState): string {
            <button class="icon-btn" data-action="openBrowser" title="Open your app in Relay's browser to add notes on elements" aria-label="Open in Browser">${icons.globe}</button>
            ${scheduledToggle(state)}
            ${remoteToggle(state)}
+           ${modelHintsToggle(state)}
            <button class="btn btn-primary" data-action="newSession">${icons.plus} New</button></div>`
       : "";
 
