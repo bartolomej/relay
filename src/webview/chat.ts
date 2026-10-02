@@ -46,7 +46,7 @@ function message(m: Message, session: Session, pinned: boolean, answer: boolean,
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t) => tool(t, openable)).join("")}</div>` : "";
   const caret = m.streaming ? `<span class="caret"></span>` : "";
   // Before any text, the loader below the messages shows it's working.
-  const label = answer ? `<div class="msg-answer">Answer</div>` : "";
+  const label = answer ? `<div class="msg-answer" title="Answer">${icons.answer}</div>` : "";
   const text = m.text ? `${label}<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : "";
   const toolbar = m.streaming
     ? ""
