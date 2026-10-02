@@ -37,7 +37,7 @@ function tool(t: ToolEvent, openable: boolean): string {
 }
 
 /** The latest user message is pinned so the reply below it keeps its question in view while scrolling. */
-function message(m: Message, session: Session, pinned: boolean, links: Set<string>, openable: boolean): string {
+function message(m: Message, session: Session, pinned: boolean, answer: boolean, links: Set<string>, openable: boolean): string {
   if (m.role === "user") {
     const cls = pinned ? `msg-pinned ${local.expandedPin === m.id ? "expanded" : ""}` : "";
     const toggle = pinned ? ` data-action="togglePin" data-mid="${esc(m.id)}"` : "";
@@ -46,7 +46,8 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t) => tool(t, openable)).join("")}</div>` : "";
   const caret = m.streaming ? `<span class="caret"></span>` : "";
   // Before any text, the loader below the messages shows it's working.
-  const text = m.text ? `<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : "";
+  const label = answer ? `<div class="msg-answer">Answer</div>` : "";
+  const text = m.text ? `${label}<div class="msg-text md">${renderMarkdown(m.text, links)}${caret}</div>` : "";
   const toolbar = m.streaming
     ? ""
     : `<div class="msg-tools">
@@ -54,6 +55,22 @@ function message(m: Message, session: Session, pinned: boolean, links: Set<strin
          <button class="icon-btn" data-action="copy" data-mid="${esc(m.id)}" title="Copy" aria-label="Copy message">${icons.copy}</button>
        </div>`;
   return `<div class="msg msg-assistant" data-mid="${esc(m.id)}">${toolbar}${tools}${text}</div>`;
+}
+
+/** The closing reply of each finished turn that ran tools, so its answer stands apart from the work. */
+function answers(messages: Message[]): Set<string> {
+  const ids = new Set<string>();
+  let worked = false;
+  messages.forEach((m, i) => {
+    if (m.role === "user") {
+      worked = false;
+      return;
+    }
+    if (m.tools && m.tools.length) worked = true;
+    const next = messages[i + 1];
+    if (worked && m.text && !m.streaming && (!next || next.role === "user")) ids.add(m.id);
+  });
+  return ids;
 }
 
 function modeTag(mode: MessageMode | undefined): string {
@@ -320,11 +337,12 @@ export function renderChat(state: UiState): string {
   const s = selected(state);
   const lastUser = state.messages.map((m) => m.role).lastIndexOf("user");
   const links = new Set(state.linkable);
+  const answered = answers(state.messages);
   if (s && state.inspecting) return `<div class="chat">${head(state, s)}${renderInspect(state, s)}</div>`;
   const body = !s
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
-      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
+      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, answered.has(m.id), links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
   return `<div class="chat">${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }

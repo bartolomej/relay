@@ -278,6 +278,9 @@ body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
 .msg-pinned.clamped .bubble { cursor: pointer; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4em), transparent); }
 .msg-pinned.expanded .bubble { max-height: none; cursor: pointer; }
 .msg-pinned.stuck .bubble { box-shadow: 0 6px 10px -6px rgba(0, 0, 0, 0.6); }
+/* Sets the final reply apart from the tool calls and notes before it. */
+.msg-answer { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--fg-muted); }
+.msg-answer::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
 .msg-text { color: var(--fg); white-space: pre-wrap; word-wrap: break-word; }
 
 /* Rendered markdown from the model. */
