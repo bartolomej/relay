@@ -558,3 +558,22 @@ body.vscode-dark .chip[type="time"], body.vscode-high-contrast .chip[type="time"
   position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; z-index: 10; padding: 6px 14px; text-align: center; font-size: 11.5px;
   background: color-mix(in srgb, var(--wait) 16%, var(--bg)); border-bottom: 1px solid var(--wait-border); color: var(--wait);
 }
+
+/* ---------- settings ---------- */
+
+/* Takes the place of the chat and composer; in the sidebar, of the sessions too. */
+.settings-wrap { display: none; flex-grow: 1; min-height: 0; flex-direction: column; }
+.show-settings .settings-wrap { display: flex; }
+.show-settings #chat, .show-settings .composer, .show-settings .task-wrap { display: none; }
+.app-sidebar.show-settings #left { display: none; }
+.settings-wrap .chat-head .btn { height: 22px; font-size: 12px; flex-shrink: 0; }
+.settings-body { flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 8px 14px 20px; }
+.app-wide .settings-body { padding: 12px 28px 28px; }
+.settings-section { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.settings-section > .group-head { padding-bottom: 2px; border-bottom: 1px solid var(--border); }
+.settings-section .field-row .btn { height: 22px; font-size: 12px; }
+.setting-note { font-size: 11.5px; color: var(--fg-muted); margin-top: -4px; }
+.setting-tier { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.tier-name { width: 64px; flex-shrink: 0; color: var(--fg); cursor: help; }
+.tier-provider { display: inline-flex; align-items: center; gap: 6px; }
+.check input:disabled + * , .check:has(input:disabled) { opacity: 0.6; cursor: default; }

@@ -87,7 +87,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push({ dispose: () => api.dispose() });
 
   watchKeepAwake(context, api);
-  initModelHints(context);
+  initModelHints(context, () => api.listProviders());
 
   const scheduler = createScheduler(api);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
@@ -118,6 +118,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand("relay.setJevKey", () => askForKey()),
     vscode.commands.registerCommand("relay.toggleModelHints", () => setModelHints(!modelHintsEnabled())),
+    vscode.commands.registerCommand("relay.settings", () => {
+      if (!WidePanel.toggleSettings()) void sidebar.toggleSettings();
+    }),
     vscode.commands.registerCommand("relay.scheduledTasks", () => {
       if (!WidePanel.toggleScheduled()) sidebar.toggleScheduled();
     }),

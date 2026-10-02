@@ -3,7 +3,7 @@ import type { UiState } from "../panel/protocol";
 import { clearHint, currentHint, requestHint } from "./hints";
 import { icons, providerMark } from "./icons";
 import { bindMentions, closeMentions, mentionKeydown } from "./mentions";
-import { composerOptions, local, post, selected } from "./state";
+import { composerOptions, local, newBrowser, newWorktree, post, selected } from "./state";
 import { esc } from "./util";
 
 /**
@@ -150,8 +150,8 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   const text = input.value.trim();
   if (!text) return;
   closeMentions();
-  const worktree = !state.selectedSessionId && state.worktrees && local.worktree;
-  const browser = !state.selectedSessionId && local.browser;
+  const worktree = !state.selectedSessionId && newWorktree(state);
+  const browser = !state.selectedSessionId && newBrowser(state);
   post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
   input.value = "";
   clearHint();
@@ -159,8 +159,8 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   autosize(input);
   local.composerFor = undefined;
   if (!state.selectedSessionId) {
-    local.worktree = false;
-    local.browser = false;
+    local.worktree = undefined;
+    local.browser = undefined;
   }
   if (local.mode === "plan") {
     local.mode = "normal";

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { Difficulty, ModelSuggestion, ProviderInfo } from "../api/types";
+import type { Difficulty, ModelSuggestion, ModelTiers, ProviderInfo } from "../api/types";
 import { checkKey, JevError, rateDifficulty } from "../backend/jev";
 
 /**
@@ -11,15 +11,25 @@ import { checkKey, JevError, rateDifficulty } from "../backend/jev";
 const SECRET = "relay.jevApiKey";
 const KEYS_URL = "https://console.typesafe.ai/keys";
 
+const LEVELS: Array<[Difficulty, string]> = [
+  ["simple", "Simple"],
+  ["standard", "Standard"],
+  ["complex", "Complex"],
+];
+
 let secrets: vscode.SecretStorage | undefined;
+let listProviders: () => Promise<ProviderInfo[]> = () => Promise.resolve([]);
 /** A rejected key is reported once, not on every pause in typing. */
 let warnedBadKey = false;
 
-type Tiers = Record<string, Partial<Record<Difficulty, { model?: string; effort?: string }>>>;
+const keyChanged = new vscode.EventEmitter<void>();
+/** The key was saved; the settings screen shows whether there is one. */
+export const onDidChangeJevKey = keyChanged.event;
 
 /** Keeps the `relay.modelHints` context key in step, for the sidebar's toggle. */
-export function initModelHints(context: vscode.ExtensionContext): void {
+export function initModelHints(context: vscode.ExtensionContext, providers: () => Promise<ProviderInfo[]>): void {
   secrets = context.secrets;
+  listProviders = providers;
   const sync = () => void vscode.commands.executeCommand("setContext", "relay.modelHints", modelHintsEnabled());
   sync();
   context.subscriptions.push(
@@ -33,10 +43,44 @@ export function modelHintsEnabled(): boolean {
   return vscode.workspace.getConfiguration("relay").get<boolean>("modelHints", false);
 }
 
-/** Turning suggestions on asks for the key first if there isn't one; without one they stay off. */
+/**
+ * Turning suggestions on the first time says which model each difficulty gets,
+ * then asks for the key; without one they stay off.
+ */
 export async function setModelHints(on: boolean): Promise<void> {
-  if (on && !(await storedKey()) && !(await askForKey())) return;
+  if (on && !(await storedKey()) && !((await introduce()) && (await askForKey()))) return;
   await vscode.workspace.getConfiguration("relay").update("modelHints", on, vscode.ConfigurationTarget.Global);
+}
+
+/** What suggestions will pick, before the key is asked for. False when cancelled. */
+async function introduce(): Promise<boolean> {
+  const providers = await listProviders().catch((): ProviderInfo[] => []);
+  const detail = [
+    "Jev rates each message you type as simple, standard or complex, and Relay suggests a model for it:",
+    tiersSummary(providers),
+    "Change them anytime in Relay's settings (the gear in the sessions bar). What you type is sent to TypeSafe to rate it.",
+  ].join("\n\n");
+  const pick = await vscode.window.showInformationMessage("Suggest a model for each message", { modal: true, detail }, "Set API Key");
+  return !!pick;
+}
+
+/** "Claude\n  Simple: Sonnet 5.5 · low\n…" for each usable provider, from `relay.modelHintModels`. */
+function tiersSummary(providers: ProviderInfo[]): string {
+  const tiers = vscode.workspace.getConfiguration("relay").get<ModelTiers>("modelHintModels", {});
+  const usable = providers.filter((p) => !p.unavailable && tiers[p.id]);
+  // Before the catalogues load, the ids are better than nothing.
+  const list = usable.length ? usable : Object.keys(tiers).map((id): ProviderInfo => ({ id: id as ProviderInfo["id"], label: id, models: [] }));
+  return list
+    .map((p) => {
+      const rows = LEVELS.map(([level, name]) => {
+        const tier = tiers[p.id][level];
+        if (!tier || !tier.model) return `  ${name}: no suggestion`;
+        const model = p.models.find((m) => m.id === tier.model);
+        return `  ${name}: ${model ? model.label : tier.model}${tier.effort ? ` · ${tier.effort}` : ""}`;
+      });
+      return [p.label, ...rows].join("\n");
+    })
+    .join("\n\n");
 }
 
 /** Asks for the key, checks it with TypeSafe and saves it. Undefined when cancelled or rejected. */
@@ -63,6 +107,7 @@ export async function askForKey(): Promise<string | undefined> {
   if (!secrets) return undefined;
   await secrets.store(SECRET, key);
   warnedBadKey = false;
+  keyChanged.fire();
   return key;
 }
 
@@ -82,12 +127,16 @@ export async function suggestModel(text: string, provider: ProviderInfo): Promis
     }
     return undefined;
   }
-  const tiers = vscode.workspace.getConfiguration("relay").get<Tiers>("modelHintModels", {});
+  const tiers = vscode.workspace.getConfiguration("relay").get<ModelTiers>("modelHintModels", {});
   const tier = tiers[provider.id] && tiers[provider.id][difficulty];
   const model = tier && provider.models.find((m) => m.id === tier.model);
   if (!tier || !model) return undefined;
   const effort = tier.effort && model.efforts.includes(tier.effort) ? tier.effort : model.defaultEffort || model.efforts[0] || "";
   return { difficulty, model: model.id, effort };
+}
+
+export async function hasJevKey(): Promise<boolean> {
+  return !!(await storedKey());
 }
 
 async function storedKey(): Promise<string | undefined> {

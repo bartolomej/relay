@@ -23,9 +23,9 @@ Relay drives the `claude` and `codex` CLIs you already have, so your logins, set
 
 ### The right model for each message
 
-Click the gauge next to **New** to turn on model suggestions. Then, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet, Opus and Fable for Claude. Set your own in `relay.modelHintModels`.
+Click the gauge next to **New** to turn on model suggestions. Then, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet 5.5 at low effort, Opus 5.5 at medium and Opus 5.5 at high for Claude. Change them in Relay's settings.
 
-Relay asks for your TypeSafe API key the first time and keeps it in the system keychain. **Relay: Set Jev API Key** changes it. The messages you type are sent to TypeSafe for the rating.
+The first time, Relay shows which model each difficulty gets, then asks for your TypeSafe API key and keeps it in the system keychain. **Relay: Set Jev API Key** changes it. The messages you type are sent to TypeSafe for the rating.
 
 ### See every session at a glance
 
@@ -124,12 +124,17 @@ Sessions are saved in `.relay/sessions/` in your project, so they survive reload
 
 ## Settings
 
+The gear in the sessions bar opens Relay's settings in place of the chat: model suggestions and the model for each difficulty, what new sessions start with (model, worktree, browser access), notifications, keep awake, the Plan and Ask instructions, and where to find each tool. Changes save straight to VS Code's settings, so they're also under **Relay** there.
+
 | Setting | Default | |
 |---|---|---|
 | `relay.notifications` | `all` | `all`, `inApp` (VS Code only) or `off` (badge only). |
 | `relay.keepAwake` | `true` | Keep the Mac awake while an agent works. |
 | `relay.modelHints` | `false` | Suggest a model for each message with Jev. |
 | `relay.modelHintModels` | | Model and effort suggested for a `simple`, `standard` or `complex` message, per provider. |
+| `relay.newSessionModel` | | Provider, model and effort a new session starts with. Empty: the first model listed. |
+| `relay.newSessionWorktree` | `false` | New sessions start in their own git worktree. |
+| `relay.newSessionBrowser` | `false` | New sessions start with access to Relay's browser. |
 | `relay.titleModel` | `gpt-5.6-luna` | Codex model that writes session titles. |
 | `relay.planPrompt`, `relay.askPrompt` | | Instruction added to messages sent in Plan or Ask mode. |
 | `relay.claudePath`, `relay.codexPath`, `relay.chromePath`, `relay.tailscalePath` | | Where to find each tool, if Relay can't find it on its own. |

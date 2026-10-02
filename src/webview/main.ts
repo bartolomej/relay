@@ -4,11 +4,12 @@ import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft } from "./composer";
 import { renderSessions } from "./sessions";
+import { onSettingChange, renderSettings } from "./settings";
 import { renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
 import { receiveHint } from "./hints";
 import { showFileResults } from "./mentions";
-import { local, post, selected } from "./state";
+import { local, newBrowser, newWorktree, post, selected } from "./state";
 import { elapsed } from "./util";
 
 let state: UiState | undefined;
@@ -34,8 +35,8 @@ let followedSessionId: string | undefined;
 const app = document.getElementById("app") as HTMLDivElement;
 
 function buildShell(layout: UiState["layout"]): void {
-  // Shown instead of the chat and composer while scheduled tasks are listed.
-  const task = `<div id="task" class="task-wrap"><div id="task-head"></div><div class="task-body"><div id="task-fields" class="task-fields"></div><div id="task-panel" class="task-panel"></div></div></div>`;
+  // Shown instead of the chat and composer while scheduled tasks are listed, or the settings are open.
+  const task = `<div id="task" class="task-wrap"><div id="task-head"></div><div class="task-body"><div id="task-fields" class="task-fields"></div><div id="task-panel" class="task-panel"></div></div></div><div id="settings" class="settings-wrap"></div>`;
   app.innerHTML =
     layout === "wide"
       ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat" class="chat-wrap"></div>${task}${renderComposer()}</div>`
@@ -103,6 +104,8 @@ function render(): void {
   refreshChips(state);
   app.classList.toggle("show-scheduled", state.showScheduled);
   if (state.showScheduled) renderTask(state);
+  app.classList.toggle("show-settings", state.showSettings);
+  if (state.showSettings) renderSettings(state);
 
   const chat = document.getElementById("chat");
   const html = renderChat(state);
@@ -215,7 +218,10 @@ function updatePinned(): void {
 window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
   if (!e.data) return;
   if (e.data.type === "state") {
+    // A new default model for new sessions shows in the composer straight away.
+    const before = state ? JSON.stringify(state.newSession.options) : undefined;
     state = e.data.state;
+    if (before !== undefined && before !== JSON.stringify(state.newSession.options) && !state.selectedSessionId) local.composer = undefined;
     render();
   } else if (e.data.type === "focusInput") {
     const input = document.getElementById("input");
@@ -290,6 +296,15 @@ app.addEventListener("click", (e) => {
     case "toggleScheduled":
       post({ type: "toggleScheduled" });
       break;
+    case "toggleSettings":
+      post({ type: "toggleSettings" });
+      break;
+    case "setJevKey":
+      post({ type: "setJevKey" });
+      break;
+    case "openVsCodeSettings":
+      post({ type: "openVsCodeSettings" });
+      break;
     case "selectTask":
       post({ type: "selectTask", taskId: target.dataset.task || undefined });
       break;
@@ -348,7 +363,7 @@ app.addEventListener("click", (e) => {
       post({ type: "toggleModelHints" });
       break;
     case "toggleWorktree":
-      local.worktree = !local.worktree;
+      local.worktree = !newWorktree(state);
       render();
       break;
     case "toggleInspect":
@@ -358,7 +373,7 @@ app.addEventListener("click", (e) => {
       break;
     case "toggleBrowserAccess":
       if (!id) {
-        local.browser = !local.browser;
+        local.browser = !newBrowser(state);
         render();
       } else post({ type: "toggleBrowserAccess", sessionId: id });
       break;
@@ -430,6 +445,12 @@ function onTaskField(e: Event): void {
 }
 app.addEventListener("input", onTaskField);
 app.addEventListener("change", onTaskField);
+
+// Settings save once a choice is made or typed text is committed (↵ or leaving the box).
+app.addEventListener("change", (e) => {
+  const el = e.target as HTMLInputElement;
+  if (state && el.closest && el.closest("#settings")) onSettingChange(state, el);
+});
 
 // ↵ in an answer box sends the answers once every question has one.
 app.addEventListener("keydown", (e) => {

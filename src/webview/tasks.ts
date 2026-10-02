@@ -77,7 +77,7 @@ function blankTask(state: UiState): TaskInput {
   return {
     name: "",
     prompt: "",
-    options: defaultOptions(state.providers),
+    options: defaultOptions(state),
     schedule: { ...DEFAULT_SCHEDULE },
     useWorktree: state.worktrees,
     runLimitMs: DEFAULT_RUN_LIMIT_MS,

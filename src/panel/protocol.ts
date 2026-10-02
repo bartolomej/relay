@@ -1,6 +1,37 @@
-import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ModelSuggestion, ProviderId, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionInspect, SessionOptions, TaskInput } from "../api/types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ModelSuggestion, ModelTiers, ProviderId, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionInspect, SessionOptions, TaskInput } from "../api/types";
 
 export type Layout = "sidebar" | "wide";
+
+/** What a new session starts with, from the `relay.newSession*` settings. */
+export interface NewSessionDefaults {
+  /** Unset, or not usable any more: the first provider's first model. */
+  options?: Partial<SessionOptions>;
+  worktree: boolean;
+  browser: boolean;
+}
+
+/** The settings screen's values: the `relay.*` settings it edits, plus whether there's a Jev API key. */
+export interface SettingsView {
+  modelHints: boolean;
+  jevKey: boolean;
+  modelHintModels: ModelTiers;
+  newSessionModel: Partial<SessionOptions>;
+  newSessionWorktree: boolean;
+  newSessionBrowser: boolean;
+  notifications: string;
+  keepAwake: boolean;
+  planPrompt: string;
+  askPrompt: string;
+  titleModel: string;
+  claudePath: string;
+  codexPath: string;
+  chromePath: string;
+  tailscalePath: string;
+  backend: string;
+}
+
+/** Settings the screen writes directly; turning model suggestions on goes through `toggleModelHints`, which asks for the key. */
+export type SettingKey = Exclude<keyof SettingsView, "modelHints" | "jevKey">;
 
 /** Full snapshot pushed to the webview after every change. */
 export interface UiState {
@@ -22,6 +53,7 @@ export interface UiState {
   modelHints?: boolean;
   /** New sessions can work in a git worktree; false when the project isn't a git repo. */
   worktrees: boolean;
+  newSession: NewSessionDefaults;
   /** This UI is on the phone: files can't be opened and there's no keyboard shortcut for everything. */
   remote: boolean;
   /** Remote access is on, which keeps the computer awake while agents work. */
@@ -32,6 +64,10 @@ export interface UiState {
   showScheduled: boolean;
   /** Task open in the form; undefined is a new one. */
   selectedTaskId?: string;
+  /** The settings screen takes the chat's place; never on the phone. */
+  showSettings: boolean;
+  /** Sent only while the settings screen is up. */
+  settings?: SettingsView;
   /** The inspector takes the chat's place for the open session. */
   inspecting: boolean;
   /** The open session's inspector data, sent only while the inspector is up. */
@@ -57,6 +93,12 @@ export type FromWebview =
   | { type: "openBrowser" }
   | { type: "toggleRemote" }
   | { type: "toggleScheduled" }
+  | { type: "toggleSettings" }
+  /** From the settings screen; the extension checks the value before saving it. */
+  | { type: "setSetting"; key: SettingKey; value: unknown }
+  | { type: "setJevKey" }
+  /** Opens VS Code's own settings, filtered to Relay's. */
+  | { type: "openVsCodeSettings" }
   /** Without an id, a new task. */
   | { type: "selectTask"; taskId?: string }
   /** Creates the task without an id; `runNow` also starts a run straight away. */

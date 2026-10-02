@@ -45,6 +45,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (this.host) this.host.toggleScheduled();
   }
 
+  async toggleSettings(): Promise<void> {
+    const host = await this.reveal();
+    if (host) host.toggleSettings();
+  }
+
   /** Count on the activity bar icon; shows even while the view is closed. */
   setBadge(badge: vscode.ViewBadge | undefined): void {
     this.badge = badge;

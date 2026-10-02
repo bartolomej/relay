@@ -3,7 +3,7 @@ import { taskName } from "../api/schedule";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
 import { elapsed, esc, level, tokens } from "./util";
-import { local, selected } from "./state";
+import { local, newBrowser, newWorktree, selected } from "./state";
 import { renderMarkdown } from "./markdown";
 import { renderInspect } from "./inspect";
 import { backgroundTag } from "./sessions";
@@ -181,7 +181,7 @@ function keepAwakeToggle(state: UiState): string {
 function worktreeToggle(state: UiState, s: Session | undefined): string {
   if (!state.worktrees && !(s && s.worktree)) return "";
   if (!s) {
-    const on = local.worktree;
+    const on = newWorktree(state);
     const title = on
       ? "This session will work in its own git worktree and merge back on Complete. Click to work in the project folder."
       : "This session will work in the project folder. Click to give it its own git worktree, merged back on Complete.";
@@ -234,8 +234,8 @@ function inspectToggle(state: UiState, s: Session): string {
 }
 
 /** On: the agent can drive Relay's browser, opened for it when a turn starts. */
-function browserToggle(s: Session | undefined): string {
-  const on = s ? !!s.browserAccess : local.browser;
+function browserToggle(state: UiState, s: Session | undefined): string {
+  const on = s ? !!s.browserAccess : newBrowser(state);
   const title = on
     ? "The agent can drive Relay's browser: open pages, click, type, read the console and take screenshots. Click to turn it off."
     : "Let the agent drive Relay's browser, the window with your logins. It opens when the agent starts working; if it's already open without agent access, it restarts once and reopens its tabs.";
@@ -244,7 +244,7 @@ function browserToggle(s: Session | undefined): string {
 
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
-    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${keepAwakeToggle(state)}</div>`;
+    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(state, undefined)}${keepAwakeToggle(state)}</div>`;
   }
   const status =
     s.status === "running"
@@ -276,7 +276,7 @@ function head(state: UiState, s: Session | undefined): string {
     ${runClock(state, s)}
     ${inspectToggle(state, s)}
     ${worktreeToggle(state, s)}
-    ${browserToggle(s)}
+    ${browserToggle(state, s)}
     ${keepAwakeToggle(state)}
     ${secondOpinion(state, s)}
     ${scheduledTag(state, s)}

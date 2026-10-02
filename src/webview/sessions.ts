@@ -2,6 +2,7 @@ import { hasBackground, isActive, type BackgroundTask, type Session } from "../a
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
 import { local } from "./state";
+import { settingsToggle } from "./settings";
 import { scheduledToggle } from "./tasks";
 import { ago, elapsed, esc } from "./util";
 
@@ -250,6 +251,7 @@ export function renderSessions(state: UiState): string {
            ${scheduledToggle(state)}
            ${remoteToggle(state)}
            ${modelHintsToggle(state)}
+           ${settingsToggle(state)}
            <button class="btn btn-primary" data-action="newSession">${icons.plus} New</button></div>`
       : "";
 

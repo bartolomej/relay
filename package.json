@@ -88,6 +88,12 @@
         "command": "relay.setJevKey",
         "title": "Set Jev API Key",
         "category": "Relay"
+      },
+      {
+        "command": "relay.settings",
+        "title": "Settings",
+        "category": "Relay",
+        "icon": "$(gear)"
       }
     ],
     "menus": {
@@ -126,6 +132,11 @@
           "command": "relay.toggleModelHints",
           "when": "view == relay.sidebar",
           "group": "navigation@6"
+        },
+        {
+          "command": "relay.settings",
+          "when": "view == relay.sidebar",
+          "group": "navigation@7"
         }
       ],
       "commandPalette": [
@@ -196,14 +207,14 @@
             "claude": {
               "simple": {
                 "model": "sonnet",
-                "effort": "medium"
+                "effort": "low"
               },
               "standard": {
                 "model": "opus",
-                "effort": "high"
+                "effort": "medium"
               },
               "complex": {
-                "model": "claude-fable-5-1",
+                "model": "opus",
                 "effort": "high"
               }
             },
@@ -222,7 +233,37 @@
               }
             }
           },
-          "markdownDescription": "The model and effort suggested for a `simple`, `standard` or `complex` message, per provider. Models are the ids in the model dropdown (hover a model to see it). A model the provider doesn't list gets no suggestion."
+          "markdownDescription": "The model and effort suggested for a `simple`, `standard` or `complex` message, per provider. Models are the ids in the model dropdown (hover a model to see it). A model the provider doesn't list gets no suggestion. Easiest to change in Relay's settings (the gear in the sessions bar)."
+        },
+        "relay.newSessionModel": {
+          "type": "object",
+          "default": {},
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "effort": {
+              "type": "string"
+            }
+          },
+          "markdownDescription": "Provider, model and effort a new session starts with, e.g. `{ \"provider\": \"claude\", \"model\": \"opus\", \"effort\": \"high\" }`. Empty: the first provider's first model. Models are the ids in the model dropdown."
+        },
+        "relay.newSessionWorktree": {
+          "type": "boolean",
+          "default": false,
+          "description": "New sessions start with their own git worktree, merged back on Complete. The toggle in a new session's header still switches it for that session."
+        },
+        "relay.newSessionBrowser": {
+          "type": "boolean",
+          "default": false,
+          "description": "New sessions start with access to Relay's browser. The toggle in a new session's header still switches it for that session."
         },
         "relay.planPrompt": {
           "type": "string",

@@ -40,6 +40,9 @@ export interface SessionOptions {
 /** How hard a message looks to Jev, which picks the model suggested for it. */
 export type Difficulty = "simple" | "standard" | "complex";
 
+/** `relay.modelHintModels`: the model and effort each difficulty gets, by provider id. */
+export type ModelTiers = Record<string, Partial<Record<Difficulty, { model?: string; effort?: Effort }>>>;
+
 /** A model for the message being typed, in the composer's provider. */
 export interface ModelSuggestion {
   difficulty: Difficulty;

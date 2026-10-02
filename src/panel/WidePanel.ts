@@ -54,6 +54,13 @@ export class WidePanel {
     return true;
   }
 
+  /** Opens or closes the settings in the tab; false when the tab isn't showing. */
+  static toggleSettings(): boolean {
+    if (!WidePanel.current || !WidePanel.current.panel.visible) return false;
+    WidePanel.current.host.toggleSettings();
+    return true;
+  }
+
   static startNew(): boolean {
     if (!WidePanel.current || !WidePanel.current.panel.visible) return false;
     WidePanel.current.host.startNew();

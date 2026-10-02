@@ -8,8 +8,9 @@ import { isGitRepo } from "../backend/worktree";
 import { remoteStatus } from "../remote/status";
 import { findLinkable, resolveIn } from "./fileLinks";
 import { searchFiles } from "./fileSearch";
-import { modelHintsEnabled, setModelHints, suggestModel } from "./modelHints";
+import { askForKey, modelHintsEnabled, onDidChangeJevKey, setModelHints, suggestModel } from "./modelHints";
 import { secondOpinionDraft } from "./secondOpinion";
+import { newSessionDefaults, settingsView, updateSetting } from "./settings";
 import type { FromWebview, Layout, ToWebview, UiState } from "./protocol";
 
 const PAST_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -34,6 +35,7 @@ export class PanelHost implements vscode.Disposable {
   private viewedUnread: string | undefined;
   private showAllPast = false;
   private showScheduled = false;
+  private showSettings = false;
   /** The inspector is up in place of the chat; picking another session closes it. */
   private inspecting = false;
   private selectedTaskId: string | undefined;
@@ -64,8 +66,9 @@ export class PanelHost implements vscode.Disposable {
     if (scheduler) this.disposables.push({ dispose: scheduler.onDidChange(() => this.schedulePush()) });
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("relay.keepAwake") || e.affectsConfiguration("relay.modelHints")) this.schedulePush();
+        if (e.affectsConfiguration("relay")) this.schedulePush();
       }),
+      onDidChangeJevKey(() => this.schedulePush()),
       remoteStatus.onDidChange(() => this.schedulePush()),
     );
   }
@@ -79,6 +82,7 @@ export class PanelHost implements vscode.Disposable {
   /** Clears the selection so the next message starts a new session. */
   startNew(): void {
     this.showScheduled = false;
+    this.showSettings = false;
     this.select(undefined);
     void this.push().then(() => this.post({ type: "focusInput" }));
   }
@@ -86,6 +90,7 @@ export class PanelHost implements vscode.Disposable {
   /** Shows this session, e.g. from a notification's Open button. */
   open(sessionId: string): void {
     this.showScheduled = false;
+    this.showSettings = false;
     this.select(sessionId);
     void this.push();
   }
@@ -93,6 +98,7 @@ export class PanelHost implements vscode.Disposable {
   /** Opens the session, or a new one without an id, and adds the text to the message box for the user to send. */
   insertText(sessionId: string | undefined, text: string): void {
     this.showScheduled = false;
+    this.showSettings = false;
     this.select(sessionId);
     void this.push().then(() => this.post({ type: "insertText", text }));
   }
@@ -101,6 +107,15 @@ export class PanelHost implements vscode.Disposable {
   toggleScheduled(): void {
     if (!this.scheduler) return;
     this.showScheduled = !this.showScheduled;
+    this.showSettings = false;
+    void this.push();
+  }
+
+  /** Opens the settings screen in place of the chat, or closes it. */
+  toggleSettings(): void {
+    if (this.remote) return;
+    this.showSettings = !this.showSettings;
+    this.showScheduled = false;
     void this.push();
   }
 
@@ -167,11 +182,14 @@ export class PanelHost implements vscode.Disposable {
       keepAwake: keepAwakeSupported ? keepAwakeEnabled() : undefined,
       modelHints: this.remote ? undefined : modelHintsEnabled(),
       worktrees: this.gitRepo,
+      newSession: newSessionDefaults(),
       remote: this.remote,
       remoteAccess: remoteStatus.on,
       tasks,
       showScheduled: this.showScheduled,
       selectedTaskId: this.selectedTaskId,
+      showSettings: this.showSettings,
+      settings: this.showSettings ? await settingsView() : undefined,
       inspecting: this.inspecting,
       inspect,
       now: Date.now(),
@@ -191,6 +209,7 @@ export class PanelHost implements vscode.Disposable {
       }
       case "selectSession":
         this.showScheduled = false;
+        this.showSettings = false;
         this.select(m.sessionId);
         await this.push();
         return;
@@ -207,10 +226,26 @@ export class PanelHost implements vscode.Disposable {
       case "toggleScheduled":
         this.toggleScheduled();
         return;
+      case "toggleSettings":
+        this.toggleSettings();
+        return;
+      case "setSetting":
+        if (this.remote) return;
+        await updateSetting(m.key, m.value);
+        // Also when nothing changed, so the screen shows what's saved again.
+        this.schedulePush();
+        return;
+      case "setJevKey":
+        if (!this.remote) await askForKey();
+        return;
+      case "openVsCodeSettings":
+        if (!this.remote) await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:gregorg.relay");
+        return;
       case "selectTask":
         // Also from a run's Scheduled tag, which is on the sessions side.
         if (!this.scheduler) return;
         this.showScheduled = true;
+        this.showSettings = false;
         this.selectedTaskId = m.taskId;
         await this.push();
         return;
@@ -283,7 +318,10 @@ export class PanelHost implements vscode.Disposable {
         await vscode.workspace.getConfiguration("relay").update("keepAwake", !keepAwakeEnabled(), vscode.ConfigurationTarget.Global);
         return;
       case "toggleModelHints":
-        if (!this.remote) await setModelHints(!modelHintsEnabled());
+        if (this.remote) return;
+        await setModelHints(!modelHintsEnabled());
+        // Cancelling the key leaves the setting as it was; the settings checkbox goes back too.
+        this.schedulePush();
         return;
       case "suggestModel":
         if (!this.remote) await this.suggestModel(m.seq, m.text, m.provider);
