@@ -250,9 +250,19 @@ function browserToggle(s: Session | undefined): string {
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleBrowserAccess" data-id="${s ? esc(s.id) : ""}" title="${esc(title)}" aria-label="Let the agent use Relay's browser" aria-pressed="${on}">${icons.browserAgent}</button>`;
 }
 
+/** On: Jev suggests a model for each message, next to the model dropdown. */
+function modelHintsToggle(state: UiState): string {
+  if (state.modelHints === undefined) return "";
+  const on = state.modelHints;
+  const title = on
+    ? "Jev suggests a model for each message from how hard it looks; ⇧⌘↵ sends with the suggestion. Click to turn off."
+    : "Let Jev suggest a model for each message: a quick one for simple changes, the strongest for open-ended work. Asks for your TypeSafe API key the first time; what you type is sent to TypeSafe.";
+  return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleModelHints" title="${esc(title)}" aria-label="Model suggestions from Jev" aria-pressed="${on}">${icons.gauge}</button>`;
+}
+
 function head(state: UiState, s: Session | undefined): string {
   if (!s) {
-    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${keepAwakeToggle(state)}</div>`;
+    return `<div class="chat-head"><span class="title grow">New session</span>${worktreeToggle(state, undefined)}${browserToggle(undefined)}${modelHintsToggle(state)}${keepAwakeToggle(state)}</div>`;
   }
   const status =
     s.status === "running"
@@ -285,6 +295,7 @@ function head(state: UiState, s: Session | undefined): string {
     ${inspectToggle(state, s)}
     ${worktreeToggle(state, s)}
     ${browserToggle(s)}
+    ${modelHintsToggle(state)}
     ${keepAwakeToggle(state)}
     ${secondOpinion(state, s)}
     ${scheduleButton(state, s)}

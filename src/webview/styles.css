@@ -433,6 +433,14 @@ body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-l
 .chip-wrap { position: relative; display: inline-flex; align-items: center; }
 .chip-wrap .provider { position: absolute; left: 7px; pointer-events: none; }
 .chip-wrap.has-mark .chip { padding-left: 23px; }
+.model-hint {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 11.5px;
+  border: 1px dashed var(--run-border); color: var(--run); white-space: nowrap;
+}
+.model-hint:hover { background-color: var(--run-bg); }
+.model-hint .kbd { font-size: 10.5px; color: var(--fg-muted); }
+.model-hint.fits { gap: 4px; border-color: var(--border-input); color: var(--fg-muted); cursor: default; }
+.model-hint.fits svg { width: 10px; height: 10px; }
 
 .send { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); display: inline-flex; align-items: center; justify-content: center; }
 .send:hover { filter: brightness(1.1); }

@@ -1,5 +1,6 @@
 import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId, type SessionOptions } from "../api/types";
 import type { UiState } from "../panel/protocol";
+import { clearHint, currentHint, requestHint } from "./hints";
 import { icons, providerMark } from "./icons";
 import { bindMentions, closeMentions, mentionKeydown } from "./mentions";
 import { composerOptions, local, post, selected } from "./state";
@@ -64,12 +65,40 @@ export function refreshChips(state: UiState): void {
   const action = working && isActive(working)
     ? `<button class="send stop" id="send" title="Stop (Esc)" aria-label="Stop the agent">${icons.stop}</button>`
     : `<button class="send" id="send" title="Send (↵)" aria-label="Send">${icons.send}</button>`;
-  const html = `${providerSel}${modelSel}${effortSel}${modeSel}<span class="grow"></span>
+  const html = `${providerSel}${modelSel}${effortSel}${modeSel}${hintChip(state, opts, models)}<span class="grow"></span>
     <button class="icon-btn" title="Attach" aria-label="Attach file">${icons.attach}</button>
     ${action}`;
   if (html === chipsHtml) return;
   el.innerHTML = html;
   chipsHtml = html;
+}
+
+const DIFFICULTY: Record<string, string> = { simple: "Simple", standard: "Standard", complex: "Complex" };
+
+/** Jev's suggestion for the message being typed. Clicking it switches to that model; ⇧⌘↵ also sends. */
+function hintChip(state: UiState, opts: SessionOptions, models: ModelInfo[]): string {
+  const h = currentHint(state);
+  if (!h) return "";
+  const m = models.find((x) => x.id === h.model);
+  const label = `${m ? m.label : h.model}${h.effort ? ` · ${h.effort}` : ""}`;
+  const difficulty = DIFFICULTY[h.difficulty] || h.difficulty;
+  if (h.model === opts.model && (!h.effort || h.effort === opts.effort)) {
+    return `<span class="model-hint fits" title="${esc(`Jev rates this message ${h.difficulty}, and the model picked is the one it suggests.`)}">${icons.check}${esc(difficulty)}</span>`;
+  }
+  const title = `Jev rates this message ${h.difficulty}. Click to switch to ${label}, or press ⇧⌘↵ to send with it.`;
+  return `<button class="model-hint" id="model-hint" title="${esc(title)}" aria-label="${esc(title)}">${esc(difficulty)} → ${esc(label)}<span class="kbd">⇧⌘↵</span></button>`;
+}
+
+/** Switches the composer to Jev's suggestion; false when there's none to switch to. */
+function applyHint(state: UiState): boolean {
+  const h = currentHint(state);
+  const opts = composerOptions(state);
+  const m = h && modelsFor(state, opts).find((x) => x.id === h.model);
+  if (!h || !m) return false;
+  pickModel(opts, m);
+  if (h.effort && m.efforts.includes(h.effort)) opts.effort = h.effort;
+  refreshChips(state);
+  return true;
 }
 
 /** A chip changed: the composer's options follow it. */
@@ -81,6 +110,8 @@ function onChipChange(state: UiState, chip: HTMLSelectElement): void {
       const p = state.providers.find((x) => x.id === (v as ProviderId));
       opts.provider = v as ProviderId;
       if (p && p.models.length && !p.models.some((m) => m.id === opts.model)) pickModel(opts, p.models[0]);
+      // Suggestions are per provider; ask again for this one.
+      requestHint(() => state, inputText());
       break;
     }
     case "chip-model": {
@@ -123,6 +154,7 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   const browser = !state.selectedSessionId && local.browser;
   post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
   input.value = "";
+  clearHint();
   delete local.drafts[draftFor];
   autosize(input);
   local.composerFor = undefined;
@@ -144,6 +176,7 @@ export function swapDraft(state: UiState): void {
   const next = state.selectedSessionId || "";
   if (!input || next === draftFor) return;
   closeMentions();
+  clearHint();
   if (input.value) local.drafts[draftFor] = input.value;
   else delete local.drafts[draftFor];
   input.value = local.drafts[next] || "";
@@ -172,6 +205,11 @@ function autosize(input: HTMLTextAreaElement): void {
   input.style.overflowY = input.scrollHeight > max ? "auto" : "hidden";
 }
 
+function inputText(): string {
+  const input = document.getElementById("input") as HTMLTextAreaElement | null;
+  return input ? input.value : "";
+}
+
 function stop(sessionId: string): void {
   post({ type: "stop", sessionId });
 }
@@ -186,6 +224,10 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
     });
     chips.addEventListener("click", (e) => {
       const s = getState();
+      if (s && (e.target as HTMLElement).closest("#model-hint")) {
+        applyHint(s);
+        return;
+      }
       if (!s || !(e.target as HTMLElement).closest("#send")) return;
       const working = selected(s);
       if (working && isActive(working)) stop(working.id);
@@ -194,9 +236,13 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
   }
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (!input) return;
-  input.addEventListener("input", () => autosize(input));
+  input.addEventListener("input", () => {
+    autosize(input);
+    requestHint(getState, input.value);
+  });
   bindMentions(getState);
-  // ↵ sends (queued while the session works), ⌘↵ (Ctrl↵) interrupts and sends, ⇧↵ or ⌥↵ is a new line, esc stops.
+  // ↵ sends (queued while the session works), ⌘↵ (Ctrl↵) interrupts and sends, ⇧⌘↵ sends with Jev's suggested model,
+  // ⇧↵ or ⌥↵ is a new line, esc stops.
   input.addEventListener("keydown", (e) => {
     if (e.isComposing || mentionKeydown(e)) return;
     if (e.key === "Escape") {
@@ -212,6 +258,10 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
     // On the phone, return is a new line and the button sends.
     if (e.key !== "Enter" || (s && s.remote)) return;
     e.preventDefault();
+    if (s && e.shiftKey && (e.metaKey || e.ctrlKey) && applyHint(s)) {
+      submit(s, "queue");
+      return;
+    }
     if (e.shiftKey || e.altKey) {
       input.setRangeText("\n", input.selectionStart, input.selectionEnd, "end");
       autosize(input);

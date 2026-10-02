@@ -33,6 +33,7 @@ export const icons = {
   context: wrap('<circle cx="6" cy="6" r="4.5"/>', 12),
   arrowUp: wrap('<path d="M6 10V2M2.8 5.2L6 2l3.2 3.2"/>', 12),
   arrowDown: wrap('<path d="M6 2v8M2.8 6.8L6 10l3.2-3.2"/>', 12),
+  gauge: wrap('<path d="M2.5 11.5a5.5 5.5 0 1111 0"/><path d="M8 11.5l2.8-3.6"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };
 

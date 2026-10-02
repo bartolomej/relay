@@ -1,4 +1,4 @@
-import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionInspect, SessionOptions, TaskInput } from "../api/types";
+import type { Answers, ApprovalDecision, Delivery, Message, MessageMode, ModelSuggestion, ProviderId, ProviderInfo, ProviderUsage, ScheduledTask, Session, SessionInspect, SessionOptions, TaskInput } from "../api/types";
 
 export type Layout = "sidebar" | "wide";
 
@@ -18,6 +18,8 @@ export interface UiState {
   showAllPast: boolean;
   /** Keep the computer awake while an agent works; undefined where that isn't supported. */
   keepAwake?: boolean;
+  /** Jev suggests a model for each message; undefined on the phone, which can't ask for the API key. */
+  modelHints?: boolean;
   /** New sessions can work in a git worktree; false when the project isn't a git repo. */
   worktrees: boolean;
   /** This UI is on the phone: files can't be opened and there's no keyboard shortcut for everything. */
@@ -45,7 +47,9 @@ export type ToWebview =
   /** Fills the new-task form, e.g. from a session's messages. */
   | { type: "taskDraft"; draft: TaskInput }
   /** Files matching an @ search in the message box, answering the `searchFiles` with this `seq`. */
-  | { type: "fileResults"; seq: number; paths: string[] };
+  | { type: "fileResults"; seq: number; paths: string[] }
+  /** Answers the `suggestModel` with this `seq`; no suggestion when Jev couldn't give one. */
+  | { type: "modelSuggestion"; seq: number; suggestion?: ModelSuggestion };
 
 export type FromWebview =
   | { type: "ready" }
@@ -80,6 +84,10 @@ export type FromWebview =
   | { type: "complete"; sessionId: string }
   | { type: "toggleAllPast" }
   | { type: "toggleKeepAwake" }
+  /** Turning it on asks for the Jev API key if there isn't one yet. */
+  | { type: "toggleModelHints" }
+  /** The message being typed, for Jev to suggest a model in this provider. */
+  | { type: "suggestModel"; seq: number; text: string; provider: ProviderId }
   /** Without a limit the extension asks for one; the phone sends what the user typed. */
   | { type: "setRunLimit"; sessionId: string; limit?: string }
   | { type: "openFile"; sessionId: string; path: string; line?: number }

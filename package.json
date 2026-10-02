@@ -76,6 +76,11 @@
         "command": "relay.remoteResetKey",
         "title": "Reset Remote Access Key",
         "category": "Relay"
+      },
+      {
+        "command": "relay.setJevKey",
+        "title": "Set Jev API Key",
+        "category": "Relay"
       }
     ],
     "menus": {
@@ -167,6 +172,45 @@
           "type": "boolean",
           "default": true,
           "description": "Keep the computer from idle-sleeping while an agent is working (macOS). The display can still sleep."
+        },
+        "relay.modelHints": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Suggest a model for each message: [Jev](https://typesafe.ai) rates how hard the message looks, and the suggestion shows next to the model dropdown. **⇧⌘↵** sends with it. Messages you type are sent to TypeSafe. Asks for your TypeSafe API key the first time; **Relay: Set Jev API Key** changes it."
+        },
+        "relay.modelHintModels": {
+          "type": "object",
+          "default": {
+            "claude": {
+              "simple": {
+                "model": "sonnet",
+                "effort": "medium"
+              },
+              "standard": {
+                "model": "opus",
+                "effort": "high"
+              },
+              "complex": {
+                "model": "claude-fable-5-1",
+                "effort": "high"
+              }
+            },
+            "codex": {
+              "simple": {
+                "model": "gpt-6-luna",
+                "effort": "medium"
+              },
+              "standard": {
+                "model": "gpt-6.1-sol",
+                "effort": "medium"
+              },
+              "complex": {
+                "model": "gpt-6-astra",
+                "effort": "high"
+              }
+            }
+          },
+          "markdownDescription": "The model and effort suggested for a `simple`, `standard` or `complex` message, per provider. Models are the ids in the model dropdown (hover a model to see it). A model the provider doesn't list gets no suggestion."
         },
         "relay.planPrompt": {
           "type": "string",

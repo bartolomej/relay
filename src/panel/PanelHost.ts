@@ -1,13 +1,14 @@
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
 import { DEFAULT_RUN_LIMIT_MS, DEFAULT_SCHEDULE, taskName } from "../api/schedule";
-import { isActive, minutesLabel, workDir, type Answers, type TaskInput } from "../api/types";
+import { isActive, minutesLabel, workDir, type Answers, type ProviderId, type TaskInput } from "../api/types";
 import { keepAwakeSupported } from "../backend/keepAwake";
 import { cleanTaskInput, type Scheduler } from "../backend/scheduler";
 import { isGitRepo } from "../backend/worktree";
 import { remoteStatus } from "../remote/status";
 import { findLinkable, resolveIn } from "./fileLinks";
 import { searchFiles } from "./fileSearch";
+import { modelHintsEnabled, setModelHints, suggestModel } from "./modelHints";
 import { secondOpinionDraft } from "./secondOpinion";
 import type { FromWebview, Layout, ToWebview, UiState } from "./protocol";
 
@@ -63,7 +64,7 @@ export class PanelHost implements vscode.Disposable {
     if (scheduler) this.disposables.push({ dispose: scheduler.onDidChange(() => this.schedulePush()) });
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("relay.keepAwake")) this.schedulePush();
+        if (e.affectsConfiguration("relay.keepAwake") || e.affectsConfiguration("relay.modelHints")) this.schedulePush();
       }),
       remoteStatus.onDidChange(() => this.schedulePush()),
     );
@@ -164,6 +165,7 @@ export class PanelHost implements vscode.Disposable {
       pastWindowMs: PAST_WINDOW_MS,
       showAllPast: this.showAllPast,
       keepAwake: keepAwakeSupported ? keepAwakeEnabled() : undefined,
+      modelHints: this.remote ? undefined : modelHintsEnabled(),
       worktrees: this.gitRepo,
       remote: this.remote,
       remoteAccess: remoteStatus.on,
@@ -283,6 +285,12 @@ export class PanelHost implements vscode.Disposable {
       case "toggleKeepAwake":
         await vscode.workspace.getConfiguration("relay").update("keepAwake", !keepAwakeEnabled(), vscode.ConfigurationTarget.Global);
         return;
+      case "toggleModelHints":
+        if (!this.remote) await setModelHints(!modelHintsEnabled());
+        return;
+      case "suggestModel":
+        if (!this.remote) await this.suggestModel(m.seq, m.text, m.provider);
+        return;
       case "setRunLimit":
         if (m.limit === undefined) await this.askRunLimit(m.sessionId);
         else await this.setRunLimit(m.sessionId, m.limit);
@@ -294,6 +302,12 @@ export class PanelHost implements vscode.Disposable {
         if (!this.remote) await this.searchFiles(m.sessionId, m.query, m.seq);
         return;
     }
+  }
+
+  private async suggestModel(seq: number, text: string, providerId: ProviderId): Promise<void> {
+    const provider = modelHintsEnabled() ? (await this.api.listProviders()).find((p) => p.id === providerId) : undefined;
+    const suggestion = provider ? await suggestModel(text, provider) : undefined;
+    await this.post({ type: "modelSuggestion", seq, suggestion });
   }
 
   private async searchFiles(sessionId: string | undefined, query: string, seq: number): Promise<void> {

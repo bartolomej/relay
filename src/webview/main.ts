@@ -6,6 +6,7 @@ import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft }
 import { remoteToggle, renderSessions } from "./sessions";
 import { loadTaskDraft, renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
+import { receiveHint } from "./hints";
 import { showFileResults } from "./mentions";
 import { local, post, selected } from "./state";
 import { elapsed } from "./util";
@@ -226,6 +227,8 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
     if (state) renderTask(state, true);
   } else if (e.data.type === "fileResults") {
     showFileResults(e.data.seq, e.data.paths);
+  } else if (e.data.type === "modelSuggestion") {
+    if (receiveHint(e.data.seq, e.data.suggestion) && state) refreshChips(state);
   }
 });
 
@@ -346,6 +349,9 @@ app.addEventListener("click", (e) => {
       break;
     case "toggleKeepAwake":
       post({ type: "toggleKeepAwake" });
+      break;
+    case "toggleModelHints":
+      post({ type: "toggleModelHints" });
       break;
     case "toggleWorktree":
       local.worktree = !local.worktree;

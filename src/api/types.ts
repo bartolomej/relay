@@ -37,6 +37,16 @@ export interface SessionOptions {
   effort: Effort;
 }
 
+/** How hard a message looks to Jev, which picks the model suggested for it. */
+export type Difficulty = "simple" | "standard" | "complex";
+
+/** A model for the message being typed, in the composer's provider. */
+export interface ModelSuggestion {
+  difficulty: Difficulty;
+  model: string;
+  effort: Effort;
+}
+
 export interface PendingApproval {
   kind: "bash" | "edit" | "other";
   summary: string;

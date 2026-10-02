@@ -13,6 +13,7 @@ import { Browser, findChrome, type PageNote } from "./browser/browser";
 import { saveShot } from "./browser/shots";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
+import { askForKey, initModelHints } from "./panel/modelHints";
 import { keepAwakeEnabled, workspaceCwd } from "./panel/PanelHost";
 import { SidebarViewProvider } from "./panel/SidebarViewProvider";
 import { Attention, type NotifyLevel } from "./panel/attention";
@@ -86,6 +87,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push({ dispose: () => api.dispose() });
 
   watchKeepAwake(context, api);
+  initModelHints(context.secrets);
 
   const scheduler = createScheduler(api);
   context.subscriptions.push({ dispose: () => scheduler.dispose() });
@@ -114,6 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("relay.newSession", () => {
       if (!WidePanel.startNew()) sidebar.startNew();
     }),
+    vscode.commands.registerCommand("relay.setJevKey", () => askForKey()),
     vscode.commands.registerCommand("relay.scheduledTasks", () => {
       if (!WidePanel.toggleScheduled()) sidebar.toggleScheduled();
     }),
