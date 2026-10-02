@@ -198,10 +198,10 @@ textarea, input, select { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 6px; min-width: 0; text-align: left;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg);
 }
-.usage-head svg { width: 12px; height: 12px; flex-shrink: 0; transform: rotate(-90deg); transition: transform 0.12s; }
-.usage-head.open svg { transform: none; }
-.usage-sum { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--fg-muted); white-space: nowrap; }
-.usage-sum + .usage-sum::before { content: "·"; margin-right: 6px; }
+.usage-head > svg { width: 12px; height: 12px; flex-shrink: 0; transform: rotate(-90deg); transition: transform 0.12s; }
+.usage-head.open > svg { transform: none; }
+.usage-sum { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--fg-muted); white-space: nowrap; }
+.usage-sum + .usage-sum::before { content: "·"; margin-right: 2px; }
 .usage-sum-warn { color: var(--wait); }
 .usage-sum-crit { color: var(--fail); }
 .usage-provider { display: flex; flex-direction: column; gap: 3px; }

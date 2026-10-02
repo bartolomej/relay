@@ -1,6 +1,6 @@
 import type { ProviderUsage, UsageWindow } from "../api/types";
 import type { UiState } from "../panel/protocol";
-import { icons } from "./icons";
+import { icons, providerMark } from "./icons";
 import { local } from "./state";
 import { esc, level, until } from "./util";
 
@@ -43,7 +43,7 @@ function isSession(w: UsageWindow): boolean {
 
 /**
  * Collapsed: the 5 hour window, then the fullest of the rest per provider,
- * since that's the one that will stop you. E.g. "Claude 5%/40%".
+ * since that's the one that will stop you. E.g. "<Claude mark> 5%/40%".
  */
 function summary(state: UiState): string {
   return state.usage
@@ -54,8 +54,9 @@ function summary(state: UiState): string {
       const top = rest.length ? rest.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a)) : undefined;
       const shown = [session, top].filter((w): w is UsageWindow => !!w);
       const pcts = shown.map((w) => Math.round(w.usedPercent));
-      const title = shown.map((w, i) => `${w.label}: ${pcts[i]}%`).join(" / ");
-      return `<span class="usage-sum usage-sum-${level(Math.max(...pcts))}" title="${esc(title)}">${esc(label(state, u))} ${pcts.map((p) => `${p}%`).join("/")}</span>`;
+      const name = label(state, u);
+      const title = `${name} · ${shown.map((w, i) => `${w.label}: ${pcts[i]}%`).join(" / ")}`;
+      return `<span class="usage-sum usage-sum-${level(Math.max(...pcts))}" title="${esc(title)}">${providerMark(u.provider)}<span>${pcts.map((p) => `${p}%`).join("/")}</span></span>`;
     })
     .join("");
 }
