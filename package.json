@@ -277,6 +277,17 @@
           "default": "Just answer. Don't change anything: no editing files and no commands that change state. Read files and search the code as much as you need to give an accurate answer.",
           "markdownDescription": "Added to the end of a message sent in **Ask** mode (the dropdown next to effort). The turn also runs read-only: the agent can read and search files but not edit them or run commands that change things."
         },
+        "relay.outputFormat": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Add `#relay.outputFormatPrompt#` to the end of every message, so you control how the agent formats its answers."
+        },
+        "relay.outputFormatPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "Format your answer in Markdown. Lead with the result in a sentence or two, then the details as short bullet points. Put code and commands in code blocks, and reference files as path:line.",
+          "markdownDescription": "Added to the end of every message when `#relay.outputFormat#` is on, after the **Plan** or **Ask** instruction. The chat shows only what you typed."
+        },
         "relay.notifications": {
           "type": "string",
           "enum": [

@@ -124,7 +124,7 @@ Sessions are saved in `.relay/sessions/` in your project, so they survive reload
 
 ## Settings
 
-The gear in the sessions bar opens Relay's settings in place of the chat: model suggestions and the model for each difficulty, what new sessions start with (model, worktree, browser access), notifications, keep awake, the Plan and Ask instructions, and where to find each tool. Changes save straight to VS Code's settings, so they're also under **Relay** there.
+The gear in the sessions bar opens Relay's settings in place of the chat: model suggestions and the model for each difficulty, what new sessions start with (model, worktree, browser access), notifications, keep awake, the Plan and Ask instructions, the output format instructions, and where to find each tool. Changes save straight to VS Code's settings, so they're also under **Relay** there.
 
 | Setting | Default | |
 |---|---|---|
@@ -137,6 +137,7 @@ The gear in the sessions bar opens Relay's settings in place of the chat: model 
 | `relay.newSessionBrowser` | `false` | New sessions start with access to Relay's browser. |
 | `relay.titleModel` | `gpt-5.6-luna` | Codex model that writes session titles. |
 | `relay.planPrompt`, `relay.askPrompt` | | Instruction added to messages sent in Plan or Ask mode. |
+| `relay.outputFormat` | `false` | Add `relay.outputFormatPrompt` to the end of every message, to control how answers are formatted. |
 | `relay.claudePath`, `relay.codexPath`, `relay.chromePath`, `relay.tailscalePath` | | Where to find each tool, if Relay can't find it on its own. |
 | `relay.backend` | `real` | `mock` runs fake agents with sample sessions, for working on the UI. |
 

@@ -22,6 +22,8 @@ export interface SettingsView {
   keepAwake: boolean;
   planPrompt: string;
   askPrompt: string;
+  outputFormat: boolean;
+  outputFormatPrompt: string;
   titleModel: string;
   claudePath: string;
   codexPath: string;

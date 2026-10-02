@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { createMockSessionsApi } from "./api/MockSessionsApi";
 import type { SessionsApi } from "./api/SessionsApi";
-import { hasBackground, isActive, type Session } from "./api/types";
+import { hasBackground, isActive, type MessageMode, type Session } from "./api/types";
 import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
@@ -63,6 +63,13 @@ async function importEarlierSessions(context: vscode.ExtensionContext, store: Se
   }
 }
 
+/** Added to the end of every message: the Plan or Ask instruction, then the output format if it's on. */
+function instructions(mode: MessageMode): string {
+  const modePrompt = mode === "normal" ? undefined : setting(mode === "plan" ? "planPrompt" : "askPrompt");
+  const format = vscode.workspace.getConfiguration("relay").get("outputFormat", false) ? setting("outputFormatPrompt") : undefined;
+  return [modePrompt, format].map((p) => (p || "").trim()).filter(Boolean).join("\n\n");
+}
+
 async function createApi(context: vscode.ExtensionContext): Promise<SessionsApi> {
   if (setting("backend") === "mock") return createMockSessionsApi(workspaceCwd());
   const titler = codexTitler(() => setting("codexPath"), () => setting("titleModel") || "gpt-5.6-luna");
@@ -70,7 +77,7 @@ async function createApi(context: vscode.ExtensionContext): Promise<SessionsApi>
     await createStore(context),
     [new ClaudeAdapter(() => setting("claudePath")), new CodexAdapter(() => setting("codexPath"))],
     titler,
-    (mode) => (mode === "normal" ? "" : setting(mode === "plan" ? "planPrompt" : "askPrompt") || ""),
+    instructions,
     () => (openBrowserForAgent ? openBrowserForAgent() : Promise.reject(new Error("Relay's browser isn't ready yet."))),
   );
 }

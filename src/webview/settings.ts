@@ -130,6 +130,16 @@ function modesSection(s: SettingsView): string {
   );
 }
 
+function outputFormatSection(s: SettingsView): string {
+  return section(
+    "Output format",
+    `${check("outputFormat", s.outputFormat, "Add output format instructions to every message")}
+    <label class="field"><span class="field-label">Instructions</span>
+      <textarea class="field-input" id="set-outputFormatPrompt" data-setting="outputFormatPrompt" rows="5">${esc(s.outputFormatPrompt)}</textarea></label>
+    ${note("Added to the end of every message, after the Plan or Ask instruction; the chat shows only what you typed.")}`,
+  );
+}
+
 function generalSection(state: UiState, s: SettingsView): string {
   const notifications = `<select class="chip" id="set-notifications" data-setting="notifications" aria-label="Notifications">${NOTIFICATIONS.map(([v, label]) => option(v, label, v === s.notifications)).join("")}</select>`;
   return section(
@@ -164,6 +174,7 @@ function settingsHtml(state: UiState, s: SettingsView): string {
       ${newSessionSection(state, s)}
       ${generalSection(state, s)}
       ${modesSection(s)}
+      ${outputFormatSection(s)}
       ${toolsSection(s)}
     </div>`;
 }

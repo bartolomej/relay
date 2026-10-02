@@ -76,8 +76,8 @@ export class RealSessionsApi implements SessionsApi {
     private readonly store: SessionStore,
     adapters: ProviderAdapter[],
     private readonly titler?: Titler,
-    /** Added to the end of a message sent in plan or ask mode. */
-    private readonly modePrompt: (mode: MessageMode) => string = () => "",
+    /** Added to the end of a message: the plan or ask instruction, and the output format if it's on. */
+    private readonly instructions: (mode: MessageMode) => string = () => "",
     /** Opens Relay's browser for an agent if needed and returns its DevTools address. */
     private readonly openBrowser?: () => Promise<string>,
   ) {
@@ -367,7 +367,7 @@ export class RealSessionsApi implements SessionsApi {
     const turn = ++this.turnSeq;
     this.turns.set(session.id, turn);
     const live = () => this.turns.get(session.id) === turn;
-    const instruction = mode && mode !== "normal" ? this.modePrompt(mode).trim() : "";
+    const instruction = this.instructions(mode || "normal").trim();
     const done = this.runTurn(session, instruction ? `${text}\n\n${instruction}` : text, live, mode === "ask").catch((err: unknown) => {
       if (live()) this.endTurn(session, `Error: ${err instanceof Error ? err.message : String(err)}`);
     });
