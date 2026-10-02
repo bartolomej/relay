@@ -63,10 +63,14 @@ async function importEarlierSessions(context: vscode.ExtensionContext, store: Se
   }
 }
 
+/** Said before the output format text, so whatever is written there is read as a style for the reply, not as part of the task. */
+const FORMAT_INTRO = "Write your reply in the following style. This is only about how to word and lay out the reply, not part of the task above:";
+
 /** Added to the end of every message: the Plan or Ask instruction, then the output format if it's on. */
 function instructions(mode: MessageMode): string {
   const modePrompt = mode === "normal" ? undefined : setting(mode === "plan" ? "planPrompt" : "askPrompt");
-  const format = vscode.workspace.getConfiguration("relay").get("outputFormat", false) ? setting("outputFormatPrompt") : undefined;
+  const style = vscode.workspace.getConfiguration("relay").get("outputFormat", false) ? (setting("outputFormatPrompt") || "").trim() : "";
+  const format = style ? `${FORMAT_INTRO}\n${style}` : undefined;
   return [modePrompt, format].map((p) => (p || "").trim()).filter(Boolean).join("\n\n");
 }
 
