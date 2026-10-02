@@ -1,6 +1,7 @@
 import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId, type SessionOptions } from "../api/types";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
+import { bindMentions, closeMentions, mentionKeydown } from "./mentions";
 import { composerOptions, local, post, selected } from "./state";
 import { esc } from "./util";
 
@@ -11,6 +12,7 @@ import { esc } from "./util";
 export function renderComposer(): string {
   return `<div class="composer">
     <div class="composer-box">
+      <div class="mentions" id="mentions" hidden></div>
       <textarea id="input" rows="3" aria-label="Message" placeholder="Message…"></textarea>
       <div class="composer-bar" id="chips"></div>
     </div>
@@ -116,6 +118,7 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+  closeMentions();
   const worktree = !state.selectedSessionId && state.worktrees && local.worktree;
   const browser = !state.selectedSessionId && local.browser;
   post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
@@ -140,6 +143,7 @@ export function swapDraft(state: UiState): void {
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   const next = state.selectedSessionId || "";
   if (!input || next === draftFor) return;
+  closeMentions();
   if (input.value) local.drafts[draftFor] = input.value;
   else delete local.drafts[draftFor];
   input.value = local.drafts[next] || "";
@@ -151,6 +155,7 @@ export function swapDraft(state: UiState): void {
 export function insertText(text: string): void {
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (!input) return;
+  closeMentions();
   const typed = input.value.replace(/\s+$/, "");
   input.value = typed ? `${typed}\n\n${text}` : text;
   autosize(input);
@@ -190,9 +195,10 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (!input) return;
   input.addEventListener("input", () => autosize(input));
+  bindMentions(getState);
   // ↵ sends (queued while the session works), ⌘↵ (Ctrl↵) interrupts and sends, ⇧↵ or ⌥↵ is a new line, esc stops.
   input.addEventListener("keydown", (e) => {
-    if (e.isComposing) return;
+    if (e.isComposing || mentionKeydown(e)) return;
     if (e.key === "Escape") {
       const s = getState();
       const current = s && selected(s);

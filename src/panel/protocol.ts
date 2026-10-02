@@ -43,7 +43,9 @@ export type ToWebview =
   /** Added to the end of the message box, e.g. a note from the browser. */
   | { type: "insertText"; text: string }
   /** Fills the new-task form, e.g. from a session's messages. */
-  | { type: "taskDraft"; draft: TaskInput };
+  | { type: "taskDraft"; draft: TaskInput }
+  /** Files matching an @ search in the message box, answering the `searchFiles` with this `seq`. */
+  | { type: "fileResults"; seq: number; paths: string[] };
 
 export type FromWebview =
   | { type: "ready" }
@@ -80,4 +82,6 @@ export type FromWebview =
   | { type: "toggleKeepAwake" }
   /** Without a limit the extension asks for one; the phone sends what the user typed. */
   | { type: "setRunLimit"; sessionId: string; limit?: string }
-  | { type: "openFile"; sessionId: string; path: string; line?: number };
+  | { type: "openFile"; sessionId: string; path: string; line?: number }
+  /** What's typed after an @ in the message box; files are searched in the session's folder, or the project's for a new one. */
+  | { type: "searchFiles"; sessionId?: string; query: string; seq: number };

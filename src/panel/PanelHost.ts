@@ -7,6 +7,7 @@ import { cleanTaskInput, type Scheduler } from "../backend/scheduler";
 import { isGitRepo } from "../backend/worktree";
 import { remoteStatus } from "../remote/status";
 import { findLinkable, resolveIn } from "./fileLinks";
+import { searchFiles } from "./fileSearch";
 import { secondOpinionDraft } from "./secondOpinion";
 import type { FromWebview, Layout, ToWebview, UiState } from "./protocol";
 
@@ -289,7 +290,16 @@ export class PanelHost implements vscode.Disposable {
       case "openFile":
         if (!this.remote) await this.openFile(m.sessionId, m.path, m.line);
         return;
+      case "searchFiles":
+        if (!this.remote) await this.searchFiles(m.sessionId, m.query, m.seq);
+        return;
     }
+  }
+
+  private async searchFiles(sessionId: string | undefined, query: string, seq: number): Promise<void> {
+    const session = sessionId ? (await this.api.listSessions()).find((s) => s.id === sessionId) : undefined;
+    const paths = await searchFiles(session ? workDir(session) : workspaceCwd(), query, 30);
+    await this.post({ type: "fileResults", seq, paths });
   }
 
   /** Opens a file the chat mentions: beside the Relay tab, or in the active editor from the sidebar. */

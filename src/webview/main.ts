@@ -6,6 +6,7 @@ import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft }
 import { remoteToggle, renderSessions } from "./sessions";
 import { loadTaskDraft, renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
+import { showFileResults } from "./mentions";
 import { local, post, selected } from "./state";
 import { elapsed } from "./util";
 
@@ -223,6 +224,8 @@ window.addEventListener("message", (e: MessageEvent<ToWebview>) => {
   } else if (e.data.type === "taskDraft") {
     loadTaskDraft(e.data.draft);
     if (state) renderTask(state, true);
+  } else if (e.data.type === "fileResults") {
+    showFileResults(e.data.seq, e.data.paths);
   }
 });
 
