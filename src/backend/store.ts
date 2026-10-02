@@ -37,6 +37,8 @@ export class SessionStore {
   readonly sessions = new Map<string, Session>();
   readonly messages = new Map<string, Message[]>();
   readonly inspects = new Map<string, SessionInspect>();
+  /** Sessions that were mid-turn when the window closed or the extension restarted. */
+  readonly interrupted: string[] = [];
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** What each file last held, so unchanged sessions aren't rewritten. */
   private written = new Map<string, string>();
@@ -75,7 +77,7 @@ export class SessionStore {
         file.session.folder = path.basename(this.projectRoot);
         this.save();
       }
-      this.add(file.session, file.messages);
+      if (this.add(file.session, file.messages)) this.interrupted.push(file.session.id);
       if (file.inspect) this.inspects.set(file.session.id, file.inspect);
     }
   }
@@ -140,9 +142,11 @@ export class SessionStore {
     }
   }
 
-  private add(s: Session, messages: Message[]): void {
+  /** Returns whether the session was cut off mid-turn. */
+  private add(s: Session, messages: Message[]): boolean {
     // Nothing survives a reload mid-turn: the provider process went with it.
-    if (s.status === "running" || s.status === "waiting") {
+    const cut = s.status === "running" || s.status === "waiting";
+    if (cut) {
       s.status = "failed";
       s.unread = true;
       s.pendingApproval = undefined;
@@ -152,5 +156,6 @@ export class SessionStore {
     for (const m of messages) m.streaming = false;
     this.sessions.set(s.id, s);
     this.messages.set(s.id, messages);
+    return cut;
   }
 }

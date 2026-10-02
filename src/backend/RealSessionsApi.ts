@@ -28,6 +28,8 @@ const RUN_LIMIT_CHECK_MS = 1000;
 /** The inspector keeps this many tool calls and events per session, dropping the oldest. */
 const INSPECT_MAX_TOOLS = 2000;
 const INSPECT_MAX_EVENTS = 500;
+/** Sent to a session cut off mid-turn by a reload, in place of the user typing "continue". */
+const RESUME_PROMPT = "Relay restarted before you finished. Continue where you left off.";
 
 let counter = 0;
 function nextId(prefix: string): string {
@@ -324,6 +326,15 @@ export class RealSessionsApi implements SessionsApi {
     for (const a of this.adapters.values()) if (a.stopBackground) await a.stopBackground(session.id);
   }
 
+  resumeInterrupted(): void {
+    for (const id of this.store.interrupted.splice(0)) {
+      const session = this.store.sessions.get(id);
+      // Without the provider's conversation there is nothing to continue.
+      if (!session || session.archived || isActive(session) || !session.providerSessionId) continue;
+      this.startTurn(session, RESUME_PROMPT, false, undefined, false);
+    }
+  }
+
   onDidChange(listener: () => void): Unsubscribe {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -338,11 +349,11 @@ export class RealSessionsApi implements SessionsApi {
 
   // -- turns ---------------------------------------------------------------
 
-  /** `continuing` is a queued follow-up, which stays part of the same run. */
-  private startTurn(session: Session, text: string, continuing = false, mode?: MessageMode): void {
+  /** `continuing` is a queued follow-up, which stays part of the same run. Relay's own nudges skip the retitle. */
+  private startTurn(session: Session, text: string, continuing = false, mode?: MessageMode, retitle = true): void {
     const list = this.store.messagesOf(session.id);
     if (!list.some((m) => m.role === "user")) session.title = titleFrom(text);
-    void this.retitle(session, text);
+    if (retitle) void this.retitle(session, text);
     list.push({ id: nextId("m"), role: "user", text, createdAt: Date.now(), mode: stored(mode) });
     for (let s: Session | undefined = session; s; s = s.parentId ? this.store.sessions.get(s.parentId) : undefined) {
       s.archived = false;

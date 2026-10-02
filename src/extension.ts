@@ -129,6 +129,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
   );
+
+  // Last, so the browser and everything else a turn may need is in place.
+  api.resumeInterrupted();
 }
 
 /**

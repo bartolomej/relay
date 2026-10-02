@@ -61,6 +61,12 @@ export interface SessionsApi {
    */
   archiveSession(sessionId: string): Promise<void>;
 
+  /**
+   * Continues the sessions a closed window or restarted extension cut off
+   * mid-turn, as if the user had asked them to. Called once, after startup.
+   */
+  resumeInterrupted(): void;
+
   /** Fires whenever anything above would return something different. */
   onDidChange(listener: () => void): Unsubscribe;
 
