@@ -285,7 +285,7 @@
         "relay.outputFormatPrompt": {
           "type": "string",
           "editPresentation": "multilineText",
-          "default": "Format your answer in Markdown. Lead with the result in a sentence or two, then the details as short bullet points. Put code and commands in code blocks, and reference files as path:line.",
+          "default": "Keep answers short and easy to read. For a simple question, answer in one line. For a complex one, give the most compact answer first, then expand only if really needed.",
           "markdownDescription": "Added to the end of every message when `#relay.outputFormat#` is on, after the **Plan** or **Ask** instruction. The chat shows only what you typed."
         },
         "relay.notifications": {
