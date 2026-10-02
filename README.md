@@ -21,39 +21,58 @@ Relay drives the `claude` and `codex` CLIs you already have, so your logins, set
 
 ## Features
 
+### The right model for each message
+
+Turn on **model suggestions** and, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet, Opus and Fable for Claude. Set your own in `relay.modelHintModels`.
+
+Relay asks for your TypeSafe API key the first time and keeps it in the system keychain. **Relay: Set Jev API Key** changes it. The messages you type are sent to TypeSafe for the rating.
+
+### See every session at a glance
+
+Each session is in one of three states, so the one that needs you is always on top and old sessions don't clutter your list:
+
+- **Working**: running, or waiting for your approval (amber).
+- **Ready to review**: finished or failed while you were elsewhere. It gets a **blue dot** and stays here until you open it.
+- **Complete**: you're done with it. **Complete** (top right of the chat, or the check on a card) takes it off your list. Send it another message and it comes back.
+
+Sessions you've looked at but not completed wait under **Past** for 2 hours. **Show all past sessions** finds older ones. Forks and subsessions nest under the session they came from, and every session gets a short title that follows the conversation.
+
+<img src="img/sessions.png" width="320" alt="The sessions list grouped into Working, Ready to review and Past"> <img src="img/unread.png" width="320" alt="Ready to review: finished sessions with blue unread dots, one failed in red">
+
+While you're elsewhere, the activity bar badge counts what's waiting, and a notification (with a sound if VS Code isn't in front) tells you when a session finishes, fails or needs you.
+
+### Let it run
+
+- **Keep awake**: your Mac won't idle-sleep while an agent works.
+- **Queue**: keep typing while the agent works. **↵** queues the message for when the turn ends, **⌘↵** interrupts and sends it now, **Esc** stops the agent. Queued messages wait above the box, each with **send now** and **remove**.
+- **Worktree or not**: click the branch icon before the first message and the session works on its own `relay/…` branch in `~/.relay/worktrees`, leaving your project folder alone. **Complete** merges it back automatically. Leave it off and the session works in your project folder.
+- **⏱ Time limit**: click the timer to set one, such as `30m`; the agent stops when it runs out.
+
+![A queued message above the message box](img/queue.png)
+
+### Scheduled tasks
+
+The calendar turns a prompt into a session that runs daily, on weekdays, weekly or monthly. Use it for recurring chores, such as a weekly security review of what changed. Each run gets its own git worktree, and **Save and run now** lets you try it first. Tasks only run while the project is open in VS Code; a run that was missed starts once when you're back.
+
+![A scheduled task: name, prompt, weekdays at 08:30, Claude Opus, own worktree](img/scheduled.png)
+
+### Notes from the browser
+
+Click the globe to open your app in Relay's own Chrome window. Press ✎ (or ⌥⇧C), click an element and say what should change. The note goes to the chat with the element's selector, a screenshot, and any console errors and failed requests. Turn on **browser access** in a chat and the agent can drive that same window to check its own work.
+
+![Picking the Upgrade button on a pricing page and writing a note for Relay](img/browser-notes.png)
+
+### From your phone
+
+The phone icon shows a QR code. Scan it to check sessions, answer approvals, send prompts and stop agents from anywhere. The connection goes over your private [Tailscale](https://tailscale.com) network, so nothing is open to the internet. Remote access turns itself off after 24 hours, or when you're back at the Mac.
+
+<img src="img/phone.png" width="280" alt="Relay on a phone: sessions list with an approval, and a running chat">
+
 ### Claude and Codex, side by side
 
 Pick the agent, model and effort for each message. The model list comes straight from each CLI, so new models show up as soon as your CLI has them. Set the mode to **Plan** to have the agent ask its questions before it writes any code, or **Ask** to get an answer without anything being changed.
 
 ![The message box with Codex, gpt-5.5, high effort and Plan mode selected](img/composer.png)
-
-### Sessions sorted by what needs you
-
-Sessions sit in three groups, so the one that needs you is always at the top:
-
-- **Working**: running, or waiting for your approval (amber).
-- **Ready to review**: finished since you last looked.
-- **Past**: seen in the last 2 hours. **Show all past sessions** finds the rest.
-
-Forks and subsessions nest under the session they came from. Every session gets a short title that follows the conversation.
-
-<img src="img/sessions.png" width="320" alt="The sessions list grouped into Working, Ready to review and Past">
-
-### Unread until you've looked
-
-A session that finishes or fails while you're elsewhere gets a **blue dot** and moves to **Ready to review**. Opening it clears the dot, and it moves to **Past** once you click away. While you're elsewhere, the activity bar badge counts what's waiting, and a notification (with a sound if VS Code isn't in front) tells you when a session finishes, fails or needs you.
-
-<img src="img/unread.png" width="320" alt="Ready to review: finished sessions with blue unread dots, one failed in red">
-
-### Complete when you're done
-
-**Complete** (top right of the chat, or the check on a card) archives a session and takes it off your list. Send it another message and it comes back. The header also shows how full the context window is, the token counts, a run timer, and a row of switches:
-
-![The chat header: context, tokens, a 30m time limit, tool icons and the Complete button](img/header.png)
-
-- **⏱ Time limit**: click the timer to set one, such as `30m`; the agent stops when it runs out.
-- **Fork** (the last icon): branch the session off from its latest message. Hover any earlier message to fork from there instead.
-- **Inspector**, **worktree**, **browser access**, **keep awake**, **second opinion** and **schedule**: each one is covered below.
 
 ### Approvals right where you are
 
@@ -66,12 +85,6 @@ When an agent wants to run something that needs a person, Allow / Deny shows up 
 When an agent asks multiple-choice questions, you get a button for each option. Pick one, or type your own answer.
 
 ![A question card with library and format options](img/questions.png)
-
-### Queue, interrupt, stop
-
-Keep typing while the agent works. **↵** queues the message for when the turn ends, **⌘↵** interrupts and sends it now, **Esc** stops the agent. Queued messages wait above the box, each with **send now** and **remove**.
-
-![A queued message above the message box](img/queue.png)
 
 ### @ for files
 
@@ -95,35 +108,19 @@ The bug icon shows what a Claude session loaded and how it ran: model and versio
 
 ![The inspector: session setup and a context breakdown bar](img/inspector.png)
 
-### Notes from the browser
+### Fork and the chat header
 
-Click the globe to open your app in Relay's own Chrome window. Press ✎ (or ⌥⇧C), click an element and say what should change. The note goes to the chat with the element's selector, a screenshot, and any console errors and failed requests. Turn on **browser access** in a chat and the agent can drive that same window to check its own work.
+The header shows how full the context window is, the token counts and a run timer, next to the switches covered above. **Fork** (the last icon) branches the session off from its latest message. Hover any earlier message to fork from there instead.
 
-![Picking the Upgrade button on a pricing page and writing a note for Relay](img/browser-notes.png)
+![The chat header: context, tokens, a 30m time limit, tool icons and the Complete button](img/header.png)
 
-### Scheduled tasks
-
-The calendar turns a prompt into a session that runs daily, on weekdays, weekly or monthly, each run in its own git worktree. **Save and run now** lets you try it first. Tasks only run while the project is open in VS Code; a run that was missed starts once when you're back.
-
-![A scheduled task: name, prompt, weekdays at 08:30, Claude Opus, own worktree](img/scheduled.png)
-
-### From your phone
-
-The phone icon shows a QR code. Scan it to check sessions, answer approvals, send prompts and stop agents from anywhere. The connection goes over your private [Tailscale](https://tailscale.com) network, so nothing is open to the internet. Remote access turns itself off after 24 hours, or when you're back at the Mac.
-
-<img src="img/phone.png" width="280" alt="Relay on a phone: sessions list with an approval, and a running chat">
-
-### Long runs
-
-- **Keep awake**: your Mac won't idle-sleep while an agent works.
-- **Worktrees**: click the branch icon before the first message and the session works on its own `relay/…` branch in `~/.relay/worktrees`, leaving your project folder alone. **Complete** merges it back.
-- **Sessions are saved** in `.relay/sessions/` in your project, so they survive reloads. They hold full transcripts, so consider adding `.relay/` to `.gitignore`.
+Sessions are saved in `.relay/sessions/` in your project, so they survive reloads. They hold full transcripts, so consider adding `.relay/` to `.gitignore`.
 
 ## Requirements
 
 - VS Code 1.137 or newer. Keep awake, sound notifications and remote access are macOS-only.
 - Claude Code and/or Codex, installed and signed in. Plan limits need a subscription sign-in (claude.ai, ChatGPT); with an API key, everything else still works.
-- Optional: Google Chrome (or another Chromium browser) for browser notes, Node.js for browser access, and Tailscale on the Mac and phone for remote access.
+- Optional: a [TypeSafe](https://typesafe.ai) API key for model suggestions, Google Chrome (or another Chromium browser) for browser notes, Node.js for browser access, and Tailscale on the Mac and phone for remote access.
 
 ## Settings
 
@@ -131,6 +128,8 @@ The phone icon shows a QR code. Scan it to check sessions, answer approvals, sen
 |---|---|---|
 | `relay.notifications` | `all` | `all`, `inApp` (VS Code only) or `off` (badge only). |
 | `relay.keepAwake` | `true` | Keep the Mac awake while an agent works. |
+| `relay.modelHints` | `false` | Suggest a model for each message with Jev. |
+| `relay.modelHintModels` | | Model and effort suggested for a `simple`, `standard` or `complex` message, per provider. |
 | `relay.titleModel` | `gpt-5.6-luna` | Codex model that writes session titles. |
 | `relay.planPrompt`, `relay.askPrompt` | | Instruction added to messages sent in Plan or Ask mode. |
 | `relay.claudePath`, `relay.codexPath`, `relay.chromePath`, `relay.tailscalePath` | | Where to find each tool, if Relay can't find it on its own. |
