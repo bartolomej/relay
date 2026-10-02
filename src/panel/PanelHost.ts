@@ -331,7 +331,9 @@ export class PanelHost implements vscode.Disposable {
         else await this.setRunLimit(m.sessionId, m.limit);
         return;
       case "openFile":
-        if (!this.remote) await this.openFile(m.sessionId, m.path, m.line);
+        if (this.remote) return;
+        if (m.browser) await vscode.commands.executeCommand("relay.openFileInBrowser", { sessionId: m.sessionId, path: m.path });
+        else await this.openFile(m.sessionId, m.path, m.line);
         return;
       case "searchFiles":
         if (!this.remote) await this.searchFiles(m.sessionId, m.query, m.seq);

@@ -2,7 +2,7 @@ import { hasBackground, isActive, minutesLabel, type Answers, type Message, type
 import { taskName } from "../api/schedule";
 import type { UiState } from "../panel/protocol";
 import { icons, providerMark } from "./icons";
-import { elapsed, esc, level, tokens } from "./util";
+import { elapsed, esc, htmlLinkContext, isHtml, level, tokens } from "./util";
 import { local, newBrowser, newWorktree, selected } from "./state";
 import { renderMarkdown } from "./markdown";
 import { renderInspect } from "./inspect";
@@ -31,7 +31,7 @@ function tool(t: ToolEvent, openable: boolean): string {
         ? `<span class="right ${t.ok ? "add" : ""}">${esc(t.detail)}</span>`
         : "";
   const target = t.path && openable
-    ? `<a class="target mono ellipsis file-link" data-action="openFile" data-path="${esc(t.path)}" title="Open ${esc(t.target)}">${esc(t.target)}</a>`
+    ? `<a class="target mono ellipsis file-link" data-action="openFile" data-path="${esc(t.path)}"${isHtml(t.path) ? ` data-vscode-context="${esc(htmlLinkContext(t.path))}"` : ""} title="Open ${esc(t.target)}">${esc(t.target)}</a>`
     : `<span class="target mono ellipsis">${esc(t.target)}</span>`;
   return `<div class="tool">${toolIcon(t.kind)}<span class="label ellipsis">${esc(t.label)}</span>${target}${diff}</div>`;
 }
@@ -344,5 +344,6 @@ export function renderChat(state: UiState): string {
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
       : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, answered.has(m.id), links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
-  return `<div class="chat">${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
+  const context = s ? ` data-vscode-context="${esc(JSON.stringify({ sessionId: s.id }))}"` : "";
+  return `<div class="chat"${context}>${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }

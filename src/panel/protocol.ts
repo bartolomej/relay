@@ -131,6 +131,6 @@ export type FromWebview =
   | { type: "suggestModel"; seq: number; text: string; provider: ProviderId }
   /** Without a limit the extension asks for one; the phone sends what the user typed. */
   | { type: "setRunLimit"; sessionId: string; limit?: string }
-  | { type: "openFile"; sessionId: string; path: string; line?: number }
+  | { type: "openFile"; sessionId: string; path: string; line?: number; browser?: boolean }
   /** What's typed after an @ in the message box; files are searched in the session's folder, or the project's for a new one. */
   | { type: "searchFiles"; sessionId?: string; query: string; seq: number };

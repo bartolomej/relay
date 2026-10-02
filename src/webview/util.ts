@@ -53,3 +53,13 @@ export function tokens(n: number): string {
 export function level(percent: number): "ok" | "warn" | "crit" {
   return percent >= 90 ? "crit" : percent >= 75 ? "warn" : "ok";
 }
+
+export const isHtml = (path: string): boolean => /\.html?$/i.test(path);
+
+/**
+ * VS Code's right-click menu on an HTML file link offers Open in Relay's
+ * browser. The chat root adds the session, so the path resolves in its folder.
+ */
+export function htmlLinkContext(path: string): string {
+  return JSON.stringify({ webviewSection: "htmlLink", path });
+}

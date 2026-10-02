@@ -55,6 +55,11 @@
         "icon": "$(globe)"
       },
       {
+        "command": "relay.openFileInBrowser",
+        "title": "Open in Relay's Browser",
+        "category": "Relay"
+      },
+      {
         "command": "relay.scheduledTasks",
         "title": "Scheduled Tasks",
         "category": "Relay",
@@ -139,7 +144,18 @@
           "group": "navigation@7"
         }
       ],
+      "webview/context": [
+        {
+          "command": "relay.openFileInBrowser",
+          "when": "(webviewId == 'relay.sidebar' || webviewId == 'relay.wide') && webviewSection == 'htmlLink'",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
+        {
+          "command": "relay.openFileInBrowser",
+          "when": "false"
+        },
         {
           "command": "relay.remoteOn",
           "when": "!relay.remoteOn"

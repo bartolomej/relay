@@ -10,7 +10,7 @@ import { renderUsage, usageOpen } from "./usage";
 import { receiveHint } from "./hints";
 import { showFileResults } from "./mentions";
 import { local, newBrowser, newWorktree, post, selected } from "./state";
-import { elapsed } from "./util";
+import { elapsed, isHtml } from "./util";
 
 let state: UiState | undefined;
 let shellBuilt = false;
@@ -400,7 +400,9 @@ app.addEventListener("click", (e) => {
     case "openFile": {
       e.preventDefault();
       const line = target.dataset.line ? Number(target.dataset.line) : undefined;
-      if (state.selectedSessionId && target.dataset.path) post({ type: "openFile", sessionId: state.selectedSessionId, path: target.dataset.path, line });
+      // ⌘/Ctrl-click opens an HTML file in Relay's browser instead of the editor.
+      const browser = (e.metaKey || e.ctrlKey) && isHtml(target.dataset.path || "");
+      if (state.selectedSessionId && target.dataset.path) post({ type: "openFile", sessionId: state.selectedSessionId, path: target.dataset.path, line, browser });
       break;
     }
     case "copyCode": {

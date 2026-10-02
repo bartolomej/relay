@@ -26,7 +26,7 @@ import swift from "highlight.js/lib/languages/swift";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
-import { esc } from "./util";
+import { esc, htmlLinkContext, isHtml } from "./util";
 
 // The languages agents write most; each brings its aliases (ts, sh, html, yml, …).
 const languages = { bash, c, cpp, csharp, css, diff, dockerfile, go, ini, java, javascript, json, kotlin, makefile, markdown, php, python, ruby, rust, scss, shell, sql, swift, typescript, xml, yaml };
@@ -56,9 +56,10 @@ function fileLinkAttrs(ref: { path: string; line?: string }): Array<[string, str
     ["class", "file-link"],
     ["data-action", "openFile"],
     ["data-path", ref.path],
-    ["title", `Open ${ref.path}${ref.line ? `:${ref.line}` : ""}`],
+    ["title", `Open ${ref.path}${ref.line ? `:${ref.line}` : ""}${isHtml(ref.path) ? " (⌘-click: Relay's browser)" : ""}`],
   ];
   if (ref.line) attrs.push(["data-line", ref.line]);
+  if (isHtml(ref.path)) attrs.push(["data-vscode-context", htmlLinkContext(ref.path)]);
   return attrs;
 }
 

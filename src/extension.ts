@@ -3,13 +3,14 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { createMockSessionsApi } from "./api/MockSessionsApi";
 import type { SessionsApi } from "./api/SessionsApi";
-import { hasBackground, isActive, type MessageMode, type Session } from "./api/types";
+import { hasBackground, isActive, workDir, type MessageMode, type Session } from "./api/types";
 import { ClaudeAdapter } from "./backend/claude";
 import { CodexAdapter } from "./backend/codex";
 import { KeepAwake } from "./backend/keepAwake";
 import { RealSessionsApi } from "./backend/RealSessionsApi";
 import { Scheduler } from "./backend/scheduler";
 import { Browser, findChrome, type PageNote } from "./browser/browser";
+import { resolveIn } from "./panel/fileLinks";
 import { saveShot } from "./browser/shots";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
@@ -179,20 +180,29 @@ function registerBrowser(context: vscode.ExtensionContext, api: SessionsApi, sid
   context.subscriptions.push(
     { dispose: () => browser.dispose() },
     vscode.commands.registerCommand("relay.openBrowser", async () => {
-      const executable = findChrome(setting("chromePath"));
-      if (!executable) {
-        void vscode.window.showErrorMessage("Open in Browser needs Google Chrome. Install it, or set relay.chromePath to a Chromium browser.");
-        return;
-      }
       const url = await askUrl(context);
-      if (!url) return;
-      try {
-        await browser.open(url, executable);
-      } catch (e) {
-        void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
-      }
+      if (url) await openUrl(url);
+    }),
+    // An HTML file a chat links to, from ⌘-click or the link's right-click menu.
+    vscode.commands.registerCommand("relay.openFileInBrowser", async (link?: { sessionId?: string; path?: string }) => {
+      if (!link || !link.path) return;
+      const session = (await api.listSessions()).find((s) => s.id === link.sessionId);
+      await openUrl(vscode.Uri.file(resolveIn(session ? workDir(session) : workspaceCwd(), link.path)).toString());
     }),
   );
+
+  async function openUrl(url: string): Promise<void> {
+    const executable = findChrome(setting("chromePath"));
+    if (!executable) {
+      void vscode.window.showErrorMessage("Open in Browser needs Google Chrome. Install it, or set relay.chromePath to a Chromium browser.");
+      return;
+    }
+    try {
+      await browser.open(url, executable);
+    } catch (e) {
+      void vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
 }
 
 /** The app's address, remembered per project. A bare host like localhost:3000 gets http://. */
