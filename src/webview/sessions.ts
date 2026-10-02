@@ -199,13 +199,13 @@ function matches(n: Node, query: string): boolean {
 }
 
 /** Serves Relay to the phone through Tailscale; clicking again turns it off. */
-export function remoteToggle(state: UiState): string {
+function remoteToggle(state: UiState): string {
   const on = state.remoteAccess;
   const title = on ? "Remote access is on. Click to turn it off." : "Turn on remote access from your phone";
   return `<button class="icon-btn ${on ? "on" : ""}" data-action="toggleRemote" title="${title}" aria-label="Remote access" aria-pressed="${on}">${icons.phone}</button>`;
 }
 
-export /** On: Jev suggests a model for each message, next to the model dropdown. */
+/** On: Jev suggests a model for each message, next to the model dropdown. */
 function modelHintsToggle(state: UiState): string {
   if (state.modelHints === undefined) return "";
   const on = state.modelHints;

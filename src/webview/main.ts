@@ -3,7 +3,7 @@ import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
 import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft } from "./composer";
-import { modelHintsToggle, remoteToggle, renderSessions } from "./sessions";
+import { renderSessions } from "./sessions";
 import { renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTaskForm, updateTaskField } from "./tasks";
 import { renderUsage, usageOpen } from "./usage";
 import { receiveHint } from "./hints";
@@ -56,7 +56,7 @@ function patch(el: HTMLElement, html: string): void {
 
 function renderLeft(s: UiState): void {
   const left = document.getElementById("left");
-  const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s, remoteToggle(s) + modelHintsToggle(s)) : renderSessions(s)}`;
+  const html = `${renderUsage(s)}${s.showScheduled ? renderTasks(s) : renderSessions(s)}`;
   if (!left || html === leftHtml) return;
   // A redraw that moves the search box replaces it; keep typing in it where the cursor was.
   const active = document.activeElement;

@@ -58,18 +58,15 @@ function taskCard(state: UiState, t: ScheduledTask): string {
 }
 
 /** Left column while scheduled tasks are shown, in place of the sessions. */
-export function renderTasks(state: UiState, barToggles: string): string {
-  const wide = state.layout === "wide";
+export function renderTasks(state: UiState): string {
   const tasks = state.tasks.slice().sort((a, b) => Number(!!a.paused) - Number(!!b.paused) || a.nextRunAt - b.nextRunAt);
   const list = tasks.length
     ? tasks.map((t) => taskCard(state, t)).join("")
     : `<div class="empty">No scheduled tasks yet. Add one to run a prompt daily, weekly or monthly.</div>`;
   return `<div class="sessions">
     <div class="section-head"><span>Scheduled</span><span class="grow"></span>
-      ${wide ? `<button class="icon-btn" data-action="openBrowser" title="Open your app in Relay's browser to add notes on elements" aria-label="Open in Browser">${icons.globe}</button>` : ""}
       ${scheduledToggle(state)}
-      ${wide ? barToggles : ""}
-      <button class="btn btn-primary" data-action="selectTask">${icons.plus} New task</button></div>
+      <button class="btn btn-primary" data-action="selectTask" title="New scheduled task">${icons.plus} New</button></div>
     <div class="sessions-list task-list">${list}</div>
   </div>`;
 }
