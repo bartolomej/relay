@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import type { SessionsApi } from "../api/SessionsApi";
 import { taskName } from "../api/schedule";
@@ -338,6 +339,9 @@ export class PanelHost implements vscode.Disposable {
       case "searchFiles":
         if (!this.remote) await this.searchFiles(m.sessionId, m.query, m.seq);
         return;
+      case "attachFiles":
+        if (!this.remote) await this.attachFiles(m.sessionId);
+        return;
     }
   }
 
@@ -351,6 +355,19 @@ export class PanelHost implements vscode.Disposable {
     const session = sessionId ? (await this.api.listSessions()).find((s) => s.id === sessionId) : undefined;
     const paths = await searchFiles(session ? workDir(session) : workspaceCwd(), query, 30);
     await this.post({ type: "fileResults", seq, paths });
+  }
+
+  /** Asks for files and adds their paths to the message box: relative inside the session's folder, absolute outside it. */
+  private async attachFiles(sessionId: string | undefined): Promise<void> {
+    const session = sessionId ? (await this.api.listSessions()).find((s) => s.id === sessionId) : undefined;
+    const root = session ? workDir(session) : workspaceCwd();
+    const picked = await vscode.window.showOpenDialog({ canSelectMany: true, defaultUri: vscode.Uri.file(root), openLabel: "Attach" });
+    if (!picked || !picked.length) return;
+    const paths = picked.map((uri) => {
+      const rel = path.relative(root, uri.fsPath);
+      return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : uri.fsPath;
+    });
+    await this.post({ type: "insertText", text: paths.join("\n") });
   }
 
   /** Opens a file the chat mentions: beside the Relay tab, or in the active editor from the sidebar. */

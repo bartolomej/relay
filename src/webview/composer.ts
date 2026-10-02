@@ -66,7 +66,7 @@ export function refreshChips(state: UiState): void {
     ? `<button class="send stop" id="send" title="Stop (Esc)" aria-label="Stop the agent">${icons.stop}</button>`
     : `<button class="send" id="send" title="Send (↵)" aria-label="Send">${icons.send}</button>`;
   const html = `${providerSel}${modelSel}${effortSel}${modeSel}${hintChip(state, opts, models)}<span class="grow"></span>
-    <button class="icon-btn" title="Attach" aria-label="Attach file">${icons.attach}</button>
+    ${state.remote ? "" : `<button class="icon-btn" id="attach" title="Attach files" aria-label="Attach files">${icons.attach}</button>`}
     ${action}`;
   if (html === chipsHtml) return;
   el.innerHTML = html;
@@ -226,6 +226,10 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
       const s = getState();
       if (s && (e.target as HTMLElement).closest("#model-hint")) {
         applyHint(s);
+        return;
+      }
+      if (s && (e.target as HTMLElement).closest("#attach")) {
+        post({ type: "attachFiles", sessionId: s.selectedSessionId });
         return;
       }
       if (!s || !(e.target as HTMLElement).closest("#send")) return;
