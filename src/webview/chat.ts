@@ -37,7 +37,7 @@ function tool(t: ToolEvent, openable: boolean): string {
 }
 
 /** The latest user message is pinned so the reply below it keeps its question in view while scrolling. */
-function message(m: Message, session: Session, pinned: boolean, answer: boolean, links: Set<string>, openable: boolean): string {
+function message(m: Message, session: Session, pinned: boolean, answer: boolean, last: boolean, links: Set<string>, openable: boolean): string {
   if (m.role === "user") {
     const cls = pinned ? `msg-pinned ${local.expandedPin === m.id ? "expanded" : ""}` : "";
     const toggle = pinned ? ` data-action="togglePin" data-mid="${esc(m.id)}"` : "";
@@ -52,9 +52,23 @@ function message(m: Message, session: Session, pinned: boolean, answer: boolean,
     ? ""
     : `<div class="msg-tools">
          <button class="icon-btn" data-action="forkAt" data-id="${esc(session.id)}" data-mid="${esc(m.id)}" title="Fork from here" aria-label="Fork from this message">${icons.fork}</button>
-         <button class="icon-btn" data-action="copy" data-mid="${esc(m.id)}" title="Copy" aria-label="Copy message">${icons.copy}</button>
+         <button class="icon-btn" data-action="copy" data-mid="${esc(m.id)}" title="Copy as Markdown" aria-label="Copy message as Markdown">${icons.copy}</button>
        </div>`;
-  return `<div class="msg msg-assistant" data-mid="${esc(m.id)}">${toolbar}${tools}${text}</div>`;
+  // The toolbar above is out of view at the end of a long reply, so a finished reply repeats Copy below it.
+  const foot = last && m.text
+    ? `<div class="msg-foot"><button class="icon-btn sm" data-action="copy" data-mid="${esc(m.id)}" title="Copy as Markdown" aria-label="Copy this reply as Markdown">${icons.copy}</button></div>`
+    : "";
+  return `<div class="msg msg-assistant" data-mid="${esc(m.id)}">${toolbar}${tools}${text}${foot}</div>`;
+}
+
+/** The closing reply of each finished turn. */
+function turnEnds(messages: Message[], running: boolean): Set<string> {
+  const ids = new Set<string>();
+  messages.forEach((m, i) => {
+    const next = messages[i + 1];
+    if (m.role === "assistant" && !m.streaming && (next ? next.role === "user" : !running)) ids.add(m.id);
+  });
+  return ids;
 }
 
 /** The closing reply of each finished turn that ran tools, so its answer stands apart from the work. */
@@ -338,12 +352,13 @@ export function renderChat(state: UiState): string {
   const lastUser = state.messages.map((m) => m.role).lastIndexOf("user");
   const links = new Set(state.linkable);
   const answered = answers(state.messages);
+  const ends = turnEnds(state.messages, !!s && isActive(s));
   if (s && state.inspecting) return `<div class="chat">${head(state, s)}${renderInspect(state, s)}</div>`;
   const body = !s
     ? `<div class="empty">Pick a session above, or type below to start a new one.</div>`
     : state.messages.length === 0
       ? `<div class="empty">Empty session. Say what you want done.</div>`
-      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, answered.has(m.id), links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
+      : `<div class="messages-inner">${state.messages.map((m, i) => message(m, s, i === lastUser, answered.has(m.id), ends.has(m.id), links, !state.remote)).join("")}${loader(s, state.messages)}${approval(s)}${questions(s)}</div>`;
   const context = s ? ` data-vscode-context="${esc(JSON.stringify({ sessionId: s.id }))}"` : "";
   return `<div class="chat"${context}>${head(state, s)}<div class="messages" id="messages">${body}</div>${s ? queued(s) : ""}</div>`;
 }

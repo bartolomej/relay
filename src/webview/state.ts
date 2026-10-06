@@ -3,16 +3,18 @@ import type { FromWebview, UiState } from "../panel/protocol";
 
 import { connectRemote } from "./remote";
 
-declare function acquireVsCodeApi(): { postMessage(m: unknown): void };
+declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState(): unknown; setState(s: unknown): void };
+
+const vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : undefined;
 
 /** Inside VS Code the webview API; on the phone, the network. */
-const send: (m: FromWebview) => void =
-  typeof acquireVsCodeApi === "function"
-    ? (() => {
-        const vscode = acquireVsCodeApi();
-        return (m: FromWebview) => vscode.postMessage(m);
-      })()
-    : connectRemote();
+const send: (m: FromWebview) => void = vscode ? (m) => vscode.postMessage(m) : connectRemote();
+
+/** What the view keeps across reloads of the webview. */
+interface ViewState {
+  sessionsHidden?: boolean;
+}
+const saved = ((vscode && vscode.getState()) || {}) as ViewState;
 
 export function post(m: FromWebview): void {
   send(m);
@@ -45,7 +47,14 @@ export const local = {
   taskFormFor: undefined as string | undefined,
   /** The form has edits that aren't saved yet. */
   taskDirty: false,
+  /** The editor tab's sessions column is collapsed, so the chat takes the full width. */
+  sessionsHidden: !!saved.sessionsHidden,
 };
+
+export function setSessionsHidden(hidden: boolean): void {
+  local.sessionsHidden = hidden;
+  if (vscode) vscode.setState({ ...saved, sessionsHidden: hidden });
+}
 
 export function selected(state: UiState): Session | undefined {
   return state.sessions.find((s) => s.id === state.selectedSessionId);

@@ -252,7 +252,7 @@ export function renderSessions(state: UiState): string {
            ${remoteToggle(state)}
            ${modelHintsToggle(state)}
            ${settingsToggle(state)}
-           <button class="btn btn-primary" data-action="newSession">${icons.plus} New</button></div>`
+           <button class="btn btn-primary" data-action="newSession" title="New session">${icons.plus}<span class="btn-text">New</span></button></div>`
       : "";
 
   return `<div class="sessions">

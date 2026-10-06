@@ -9,7 +9,8 @@ import { renderTaskFields, renderTaskHead, renderTaskPanel, renderTasks, syncTas
 import { renderUsage, usageOpen } from "./usage";
 import { receiveHint } from "./hints";
 import { showFileResults } from "./mentions";
-import { local, newBrowser, newWorktree, post, selected } from "./state";
+import { icons } from "./icons";
+import { local, newBrowser, newWorktree, post, selected, setSessionsHidden } from "./state";
 import { elapsed, isHtml } from "./util";
 
 let state: UiState | undefined;
@@ -37,9 +38,11 @@ const app = document.getElementById("app") as HTMLDivElement;
 function buildShell(layout: UiState["layout"]): void {
   // Shown instead of the chat and composer while scheduled tasks are listed, or the settings are open.
   const task = `<div id="task" class="task-wrap"><div id="task-head"></div><div class="task-body"><div id="task-fields" class="task-fields"></div><div id="task-panel" class="task-panel"></div></div></div><div id="settings" class="settings-wrap"></div>`;
+  // In the tab, a button on the right column's top edge collapses the sessions column.
+  const collapse = `<button class="icon-btn sessions-toggle" data-action="toggleSessions">${icons.sidebar}</button>`;
   app.innerHTML =
     layout === "wide"
-      ? `<div class="col col-left" id="left"></div><div class="col"><div id="chat" class="chat-wrap"></div>${task}${renderComposer()}</div>`
+      ? `<div class="col col-left" id="left"></div><div class="col col-right">${collapse}<div id="chat" class="chat-wrap"></div>${task}${renderComposer()}</div>`
       : `<div id="left"></div><div id="chat" class="chat-wrap"></div>${task}${renderComposer()}`;
   bindComposerOnce(() => state);
   shellBuilt = true;
@@ -103,6 +106,13 @@ function render(): void {
   swapDraft(state);
   refreshChips(state);
   app.classList.toggle("show-scheduled", state.showScheduled);
+  app.classList.toggle("sessions-hidden", local.sessionsHidden);
+  const collapse = document.querySelector<HTMLElement>(".sessions-toggle");
+  if (collapse) {
+    collapse.title = local.sessionsHidden ? "Show sessions" : "Hide sessions, so the chat takes the full width";
+    collapse.setAttribute("aria-label", local.sessionsHidden ? "Show sessions" : "Hide sessions");
+    collapse.setAttribute("aria-pressed", String(!local.sessionsHidden));
+  }
   if (state.showScheduled) renderTask(state);
   app.classList.toggle("show-settings", state.showSettings);
   if (state.showSettings) renderSettings(state);
@@ -348,6 +358,10 @@ app.addEventListener("click", (e) => {
       e.stopPropagation();
       post({ type: "complete", sessionId: id });
       break;
+    case "toggleSessions":
+      setSessionsHidden(!local.sessionsHidden);
+      render();
+      break;
     case "toggleUsage":
       local.usageOpen = !usageOpen();
       render();
@@ -394,9 +408,14 @@ app.addEventListener("click", (e) => {
       render();
       break;
     }
-    case "copy":
-      if (mid) void navigator.clipboard.writeText(messageText(mid));
+    case "copy": {
+      if (!mid) break;
+      void navigator.clipboard.writeText(messageText(mid));
+      // A check stands in for the icon briefly, to show it copied.
+      target.innerHTML = icons.check;
+      setTimeout(() => (target.innerHTML = icons.copy), 1200);
       break;
+    }
     case "openFile": {
       e.preventDefault();
       const line = target.dataset.line ? Number(target.dataset.line) : undefined;

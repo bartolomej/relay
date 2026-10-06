@@ -66,7 +66,7 @@ export function renderTasks(state: UiState): string {
   return `<div class="sessions">
     <div class="section-head"><span>Scheduled</span><span class="grow"></span>
       ${scheduledToggle(state)}
-      <button class="btn btn-primary" data-action="selectTask" title="New scheduled task">${icons.plus} New</button></div>
+      <button class="btn btn-primary" data-action="selectTask" title="New scheduled task">${icons.plus}<span class="btn-text">New</span></button></div>
     <div class="sessions-list task-list">${list}</div>
   </div>`;
 }

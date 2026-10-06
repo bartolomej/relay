@@ -63,10 +63,23 @@ textarea, input, select { font: inherit; color: inherit; }
 /* ---------- app shells ---------- */
 
 .app { height: 100%; display: flex; flex-direction: column; }
-.app-wide { display: grid; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: 100%; }
+.app-wide { display: grid; grid-template-columns: clamp(240px, 30%, 320px) minmax(0, 1fr); grid-template-rows: 100%; }
+/* Collapsed: the chat takes the full width. Scheduled tasks are listed in the column, so it stays for them. */
+.app-wide.sessions-hidden:not(.show-scheduled) { grid-template-columns: minmax(0, 1fr); }
+.app-wide.sessions-hidden:not(.show-scheduled) #left { display: none; }
 
 .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.col-left { border-right: 1px solid var(--border); }
+.col-left { border-right: 1px solid var(--border); container-type: inline-size; }
+/* A narrow column drops the heading's label and the New button's text, so its buttons still fit. */
+@container (max-width: 310px) {
+  .section-head > span:first-child, .section-head .btn-text { display: none; }
+  .section-head .btn-primary { padding: 0 7px; }
+}
+.col-right { position: relative; }
+/* Sits at the left end of whichever head the right column shows. */
+.sessions-toggle { position: absolute; top: 8px; left: 6px; z-index: 2; }
+.show-scheduled .sessions-toggle { display: none; }
+.app-wide:not(.show-scheduled) .col-right .chat-head { padding-left: 34px; }
 
 .section-head {
   height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--border);
@@ -341,6 +354,7 @@ body.vscode-light .hljs-literal, body.vscode-light .hljs-built_in, body.vscode-l
 }
 .msg:hover .msg-tools { opacity: 1; }
 .msg-tools .icon-btn svg { width: 14px; height: 14px; }
+.msg-foot { display: flex; margin-left: -4px; }
 
 .tools { display: flex; flex-direction: column; gap: 2px; }
 .tool {

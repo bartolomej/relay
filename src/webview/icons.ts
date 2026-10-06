@@ -36,6 +36,7 @@ export const icons = {
   gauge: wrap('<path d="M2.5 11.5a5.5 5.5 0 1111 0"/><path d="M8 11.5l2.8-3.6"/>'),
   gear: wrap('<circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.5"/>'),
   answer: wrap('<path d="M2.5 3.5h11v7.5H8l-3 2.5V11H2.5z"/>'),
+  sidebar: wrap('<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6 2.5v11"/>'),
   timer: wrap('<circle cx="8" cy="9" r="5"/><path d="M8 6.5V9l1.6 1.2M6.5 2h3"/>'),
 };
 
