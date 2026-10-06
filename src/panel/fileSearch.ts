@@ -16,8 +16,8 @@ const SKIP_DIRS = new Set([
 const SKIP_FILES = new Set([".DS_Store"]);
 /** Folders are listed nearest first, so a huge tree loses its deepest files, not the ones at the top. */
 const MAX_FILES = 50_000;
-/** A file an agent just wrote shows up within this long. */
-const LIST_TTL_MS = 10_000;
+/** A file an agent just wrote shows up within this long; typing a new @ lists the folder again at once. */
+const LIST_TTL_MS = 3_000;
 const READDIR_BATCH = 64;
 
 interface Entry {
@@ -25,18 +25,31 @@ interface Entry {
   lower: string;
   /** Where the file name starts in `path`. */
   base: number;
+  /** Set for a file found only in the project, outside the session's worktree: it's offered by absolute path. */
+  root?: string;
 }
 
 const lists = new Map<string, { at: number; files: Promise<Entry[]> }>();
 
-/** Up to `limit` files under `root` matching `query`, best first, as relative paths with forward slashes. */
-export async function searchFiles(root: string, query: string, limit: number): Promise<string[]> {
-  return rankPaths(await listFiles(root), query, limit);
+/**
+ * Up to `limit` files under `root` matching `query`, best first, as relative
+ * paths with forward slashes. Files under `project` that `root` lacks, such as
+ * gitignored data a worktree doesn't have, follow as absolute paths.
+ */
+export async function searchFiles(root: string, query: string, limit: number, project?: string): Promise<string[]> {
+  const fresh = !query.trim();
+  let files = await listFiles(root, fresh);
+  if (project && project !== root) {
+    const have = new Set(files.map((f) => f.path));
+    const extra = (await listFiles(project, fresh)).filter((f) => !have.has(f.path)).map((f) => ({ ...f, root: project }));
+    files = files.concat(extra);
+  }
+  return rankPaths(files, query, limit).map((f) => (f.root ? path.join(f.root, f.path) : f.path));
 }
 
-function listFiles(root: string): Promise<Entry[]> {
+function listFiles(root: string, fresh: boolean): Promise<Entry[]> {
   const hit = lists.get(root);
-  if (hit && Date.now() - hit.at < LIST_TTL_MS) return hit.files;
+  if (hit && !fresh && Date.now() - hit.at < LIST_TTL_MS) return hit.files;
   const files = walk(root);
   lists.set(root, { at: Date.now(), files });
   return files;
@@ -88,26 +101,43 @@ async function isCopyOrLibrary(dir: string, entries: fs.Dirent[]): Promise<boole
  * Every space-separated term must appear in the path in order, though not
  * necessarily together: "comp ts" finds src/webview/composer.ts. Terms found
  * whole beat scattered ones, the file name beats its folders, and shorter
- * paths break ties.
+ * paths break ties. A term ending in / names a folder, wherever it is: "foo/"
+ * keeps only files inside every folder called foo, and the other terms then
+ * match what's below it.
  */
-export function rankPaths(files: Entry[], query: string, limit: number): string[] {
+export function rankPaths(files: Entry[], query: string, limit: number): Entry[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!terms.length) return files.slice(0, limit).map((f) => f.path);
-  const scored: { path: string; score: number }[] = [];
+  const folders = terms.filter((t) => t.endsWith("/")).map((t) => `/${t.replace(/^\/+/, "")}`);
+  const words = terms.filter((t) => !t.endsWith("/"));
+  if (!terms.length) return files.slice(0, limit);
+  const scored: { file: Entry; score: number }[] = [];
   for (const f of files) {
+    const below = belowFolders(f, folders);
+    if (!below) continue;
     let score = -f.path.length / 10;
-    for (const t of terms) {
-      const s = termScore(t, f);
+    for (const t of words) {
+      const s = termScore(t, below);
       if (s < 0) {
         score = -Infinity;
         break;
       }
       score += s;
     }
-    if (score > -Infinity) scored.push({ path: f.path, score });
+    if (score > -Infinity) scored.push({ file: f, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((s) => s.path);
+  return scored.slice(0, limit).map((s) => s.file);
+}
+
+/** The part of the path below all the named folders, or undefined if it isn't inside each of them. */
+function belowFolders(f: Entry, folders: string[]): Entry | undefined {
+  let end = 0;
+  for (const d of folders) {
+    const at = `/${f.lower}`.indexOf(d);
+    if (at < 0) return undefined;
+    end = Math.max(end, at - 1 + d.length);
+  }
+  return end ? { path: f.path.slice(end), lower: f.lower.slice(end), base: f.base - end } : f;
 }
 
 /** How well one term matches, or -1 if its letters aren't all in the path in order. */

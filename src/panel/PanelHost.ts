@@ -353,7 +353,7 @@ export class PanelHost implements vscode.Disposable {
 
   private async searchFiles(sessionId: string | undefined, query: string, seq: number): Promise<void> {
     const session = sessionId ? (await this.api.listSessions()).find((s) => s.id === sessionId) : undefined;
-    const paths = await searchFiles(session ? workDir(session) : workspaceCwd(), query, 30);
+    const paths = session ? await searchFiles(workDir(session), query, 200, session.cwd) : await searchFiles(workspaceCwd(), query, 200);
     await this.post({ type: "fileResults", seq, paths });
   }
 
