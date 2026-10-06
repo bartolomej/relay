@@ -14,6 +14,7 @@ import { resolveIn } from "./panel/fileLinks";
 import { saveShot } from "./browser/shots";
 import { SessionStore } from "./backend/store";
 import { codexTitler } from "./backend/titles";
+import { editorSelection, watchEditorSelection } from "./panel/editorSelection";
 import { askForKey, initModelHints, modelHintsEnabled, setModelHints } from "./panel/modelHints";
 import { keepAwakeEnabled, workspaceCwd } from "./panel/PanelHost";
 import { SidebarViewProvider } from "./panel/SidebarViewProvider";
@@ -129,6 +130,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   context.subscriptions.push(
     launcher,
+    watchEditorSelection(workspaceCwd),
     attention,
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewType, sidebar, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -138,6 +140,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!WidePanel.startNew()) sidebar.startNew();
     }),
     vscode.commands.registerCommand("relay.setJevKey", () => askForKey()),
+    // Like Cursor's Add to Chat: the selection goes with the next message, next to any added before it.
+    vscode.commands.registerCommand("relay.addSelectionToChat", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !editorSelection.pin(editor, workspaceCwd())) {
+        void vscode.window.showInformationMessage("Select some code in a file first.");
+        return;
+      }
+      if (!WidePanel.focusInput()) await sidebar.focusInput();
+    }),
     vscode.commands.registerCommand("relay.toggleModelHints", () => setModelHints(!modelHintsEnabled())),
     vscode.commands.registerCommand("relay.settings", () => {
       if (!WidePanel.toggleSettings()) void sidebar.toggleSettings();

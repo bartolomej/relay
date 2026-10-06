@@ -34,6 +34,8 @@ export const local = {
   worktree: undefined as boolean | undefined,
   /** The next new session's agent may drive Relay's browser. Unset follows `relay.newSessionBrowser`; resets once used. */
   browser: undefined as boolean | undefined,
+  /** The editor selection the user removed from the message box, or already sent, so it isn't offered again until it changes. */
+  usedSelection: "",
   /** How the next message is sent. Plan goes back to normal after each send; ask stays until switched. */
   mode: "normal" as MessageMode,
   /** Options picked so far for a session's pending questions, by session id. */

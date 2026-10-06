@@ -47,6 +47,14 @@ export class WidePanel {
     return true;
   }
 
+  /** Shows the tab with the cursor in its message box; false when there is no tab. */
+  static focusInput(): boolean {
+    if (!WidePanel.current) return false;
+    WidePanel.current.panel.reveal();
+    WidePanel.current.host.focusInput();
+    return true;
+  }
+
   /** Switches the tab between sessions and scheduled tasks; false when the tab isn't showing. */
   static toggleScheduled(): boolean {
     if (!WidePanel.current || !WidePanel.current.panel.visible) return false;

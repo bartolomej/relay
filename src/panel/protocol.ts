@@ -35,6 +35,20 @@ export interface SettingsView {
 /** Settings the screen writes directly; turning model suggestions on goes through `toggleModelHints`, which asks for the key. */
 export type SettingKey = Exclude<keyof SettingsView, "modelHints" | "jevKey">;
 
+/** Code selected in an editor, offered as context for the next message. */
+export interface EditorSelection {
+  fsPath: string;
+  /** Relative to the project folder when it's inside it. */
+  path: string;
+  /** 1-based and inclusive. */
+  startLine: number;
+  endLine: number;
+  /** The editor's language id, for the code fence. */
+  language: string;
+  /** Unset when the selection is too long to send; the agent gets the file and lines and reads them itself. */
+  text?: string;
+}
+
 /** Full snapshot pushed to the webview after every change. */
 export interface UiState {
   layout: Layout;
@@ -74,6 +88,10 @@ export interface UiState {
   inspecting: boolean;
   /** The open session's inspector data, sent only while the inspector is up. */
   inspect?: SessionInspect;
+  /** Code selected in an editor right now; never on the phone. */
+  selection?: EditorSelection;
+  /** Selections added with Add Selection to Chat, oldest first; empty on the phone. */
+  pinned: EditorSelection[];
   now: number;
 }
 
@@ -135,4 +153,6 @@ export type FromWebview =
   /** What's typed after an @ in the message box; files are searched in the session's folder, or the project's for a new one. */
   | { type: "searchFiles"; sessionId?: string; query: string; seq: number }
   /** The composer's attach button: pick files, and their paths are added to the message box. */
-  | { type: "attachFiles"; sessionId?: string };
+  | { type: "attachFiles"; sessionId?: string }
+  /** The × on a selection added with Add Selection to Chat. */
+  | { type: "unpinSelection"; index: number };

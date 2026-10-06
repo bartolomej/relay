@@ -92,6 +92,12 @@ When an agent asks multiple-choice questions, you get a button for each option. 
 
 Type **@** and start typing to fuzzy-search the project's files. Spaces are fine, so `comp ts` finds `src/webview/composer.ts`. **↵** or **Tab** puts the file's relative path in the message, and **Esc** closes the search. Files ignored by git are included. Dependency and cache folders such as `node_modules` and virtualenvs are left out.
 
+### Selected code goes with your message
+
+Select code in any editor and it shows above the message box as a chip, such as `service_policies.py (263-276)`. Send and the agent gets the file, the lines and the code after your message, as in Cursor. The **×** leaves it out. Clearing the selection or switching to another file takes it away, and once sent it isn't added again until you select something else. Very long selections send only the file and lines.
+
+To send several, select each one and press **⌥⌘L** (or right-click → **Relay: Add Selection to Chat**). Added selections get a solid chip and stay until you send or remove them; the one you've just selected has a dashed chip.
+
 ### Plan limits at a glance
 
 **Status** shows every limit Claude and Codex report: the 5-hour session, weekly limits, per-model limits, extra usage and credits, each with time until reset. Bars turn amber at 75% and red at 90%.

@@ -74,6 +74,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (host) host.insertText(sessionId, text);
   }
 
+  async focusInput(): Promise<void> {
+    const host = await this.reveal();
+    if (host) host.focusInput();
+  }
+
   /** Before the view first opens, the host doesn't exist yet. */
   private async reveal(): Promise<PanelHost | undefined> {
     await vscode.commands.executeCommand(`${SidebarViewProvider.viewType}.focus`);

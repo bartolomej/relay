@@ -56,6 +56,11 @@
         "icon": "$(globe)"
       },
       {
+        "command": "relay.addSelectionToChat",
+        "title": "Add Selection to Chat",
+        "category": "Relay"
+      },
+      {
         "command": "relay.openFileInBrowser",
         "title": "Open in Relay's Browser",
         "category": "Relay"
@@ -164,6 +169,13 @@
         {
           "command": "relay.remoteOff",
           "when": "relay.remoteOn"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "relay.addSelectionToChat",
+          "when": "editorHasSelection && resourceScheme == file",
+          "group": "relay@1"
         }
       ]
     },
@@ -321,7 +333,15 @@
           "description": "How to get your attention when a session you aren't looking at finishes, fails or needs approval."
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "relay.addSelectionToChat",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

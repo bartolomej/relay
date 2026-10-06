@@ -1,5 +1,5 @@
 import { isActive, type Delivery, type Effort, type MessageMode, type ModelInfo, type ProviderId, type SessionOptions } from "../api/types";
-import type { UiState } from "../panel/protocol";
+import type { EditorSelection, UiState } from "../panel/protocol";
 import { clearHint, currentHint, requestHint } from "./hints";
 import { icons, providerMark } from "./icons";
 import { bindMentions, closeMentions, mentionKeydown } from "./mentions";
@@ -14,10 +14,63 @@ export function renderComposer(): string {
   return `<div class="composer">
     <div class="composer-box">
       <div class="mentions" id="mentions" hidden></div>
+      <div class="context" id="context" hidden></div>
       <textarea id="input" rows="3" aria-label="Message" placeholder="Message…"></textarea>
       <div class="composer-bar" id="chips"></div>
     </div>
   </div>`;
+}
+
+/** What the context row last rendered, so it's only redrawn when the selection changes. */
+let contextHtml = "";
+
+function selectionKey(sel: EditorSelection): string {
+  return JSON.stringify([sel.fsPath, sel.startLine, sel.endLine, sel.text]);
+}
+
+/** The live editor selection going with the next message, unless the user removed it, it was already sent, or it's also added. */
+function offeredSelection(state: UiState): EditorSelection | undefined {
+  const sel = state.selection;
+  if (!sel) return undefined;
+  const key = selectionKey(sel);
+  return key !== local.usedSelection && !state.pinned.some((p) => selectionKey(p) === key) ? sel : undefined;
+}
+
+/** Everything that goes with the next message: the added selections, then the live one. */
+function contextSelections(state: UiState): EditorSelection[] {
+  const live = offeredSelection(state);
+  return live ? [...state.pinned, live] : state.pinned;
+}
+
+/** One chip; `index` is an added selection's place, undefined for the live one. */
+function contextChip(sel: EditorSelection, index?: number): string {
+  const name = sel.path.split(/[\\/]/).pop() || sel.path;
+  const lines = sel.startLine === sel.endLine ? `${sel.startLine}` : `${sel.startLine}-${sel.endLine}`;
+  const how = index === undefined ? "selected now, goes with your message" : "added, goes with your message";
+  const title = `${sel.path}, lines ${lines}: ${how}${sel.text ? "" : " (too long to include; the agent reads those lines itself)"}`;
+  const remove = `<button class="context-remove" data-pin="${index === undefined ? "" : index}" title="Don't include" aria-label="Don't include ${esc(name)} lines ${esc(lines)}">${icons.cross}</button>`;
+  return `<span class="context-chip ${index === undefined ? "context-live" : ""}" title="${esc(title)}">${esc(name)} <span class="context-lines">(${esc(lines)})</span>${remove}</span>`;
+}
+
+function refreshContext(state: UiState): void {
+  const el = document.getElementById("context");
+  if (!el) return;
+  const live = offeredSelection(state);
+  const html = state.pinned.map((sel, i) => contextChip(sel, i)).join("") + (live ? contextChip(live) : "");
+  if (html === contextHtml) return;
+  el.innerHTML = html;
+  el.hidden = !html;
+  contextHtml = html;
+}
+
+/** The selection as the agent gets it after the message: the file and lines, and the code in a fence. */
+function selectionContext(sel: EditorSelection): string {
+  const where = `\`${sel.path}\` lines ${sel.startLine}-${sel.endLine}`;
+  if (sel.text === undefined) return `Selected: ${where}`;
+  // Longer than any run of backticks in the code, so the fence can't close early.
+  const runs = sel.text.match(/`+/g) || [];
+  const fence = "`".repeat(Math.max(3, ...runs.map((r) => r.length + 1)));
+  return `Selected: ${where}\n${fence}${sel.language}\n${sel.text.replace(/\n$/, "")}\n${fence}`;
 }
 
 /** What the chips last rendered; they're only redrawn when that changes, so an open dropdown stays open while sessions stream. */
@@ -34,6 +87,7 @@ function modelsFor(state: UiState, opts: SessionOptions): ModelInfo[] {
 export function refreshChips(state: UiState): void {
   const el = document.getElementById("chips");
   if (!el) return;
+  refreshContext(state);
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
   if (input) input.placeholder = placeholder(state);
   const opts = composerOptions(state);
@@ -152,7 +206,10 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
   closeMentions();
   const worktree = !state.selectedSessionId && newWorktree(state);
   const browser = !state.selectedSessionId && newBrowser(state);
-  post({ type: "send", sessionId: state.selectedSessionId, text, options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
+  // Sent now, whether live or added, so it isn't offered again once the added ones are cleared.
+  if (state.selection) local.usedSelection = selectionKey(state.selection);
+  const context = contextSelections(state).map(selectionContext);
+  post({ type: "send", sessionId: state.selectedSessionId, text: [text, ...context].join("\n\n"), options: { ...composerOptions(state) }, delivery, worktree, browser, mode: local.mode });
   input.value = "";
   clearHint();
   delete local.drafts[draftFor];
@@ -162,10 +219,8 @@ export function submit(state: UiState, delivery: Delivery = "queue"): void {
     local.worktree = undefined;
     local.browser = undefined;
   }
-  if (local.mode === "plan") {
-    local.mode = "normal";
-    refreshChips(state);
-  }
+  if (local.mode === "plan") local.mode = "normal";
+  refreshChips(state);
 }
 
 let draftFor = "";
@@ -236,6 +291,19 @@ export function bindComposerOnce(getState: () => UiState | undefined): void {
       const working = selected(s);
       if (working && isActive(working)) stop(working.id);
       else submit(s);
+    });
+  }
+  const context = document.getElementById("context");
+  if (context) {
+    context.addEventListener("click", (e) => {
+      const s = getState();
+      const btn = (e.target as HTMLElement).closest<HTMLElement>(".context-remove");
+      if (!s || !btn) return;
+      if (btn.dataset.pin) post({ type: "unpinSelection", index: Number(btn.dataset.pin) });
+      else if (s.selection) {
+        local.usedSelection = selectionKey(s.selection);
+        refreshContext(s);
+      }
     });
   }
   const input = document.getElementById("input") as HTMLTextAreaElement | null;
