@@ -11,7 +11,7 @@ const MODEL = "jev-latest";
 const TIMEOUT_MS = 10 * 1000;
 const MAX_INPUT = 4000;
 
-const LEVELS: Difficulty[] = ["simple", "standard", "complex"];
+const LEVELS: Difficulty[] = ["simple", "standard", "complex", "extreme"];
 
 const QUESTION = {
   type: "score",
@@ -20,6 +20,7 @@ const QUESTION = {
     "Simple: a small, clearly specified change or command, e.g. tweak a style or some UI text, rename something, run a command, commit, or answer a quick factual question",
     "Standard: a typical feature or bug fix with a clear path, touching a few files",
     "Complex: open-ended, abstract or risky work, e.g. design or architecture, a refactor across many files, a bug with an unclear cause, or research weighing trade-offs",
+    "Extreme: rare. Complex work that keeps failing, e.g. the user says a hard bug is still not fixed after several attempts",
   ],
 };
 

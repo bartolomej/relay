@@ -37,8 +37,8 @@ export interface SessionOptions {
   effort: Effort;
 }
 
-/** How hard a message looks to Jev, which picks the model suggested for it. */
-export type Difficulty = "simple" | "standard" | "complex";
+/** How hard a message looks to Jev, which picks the model suggested for it. "extreme" is rare: hard work that keeps failing. */
+export type Difficulty = "simple" | "standard" | "complex" | "extreme";
 
 /** `relay.modelHintModels`: the model and effort each difficulty gets, by provider id. */
 export type ModelTiers = Record<string, Partial<Record<Difficulty, { model?: string; effort?: Effort }>>>;

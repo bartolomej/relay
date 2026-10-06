@@ -216,7 +216,7 @@
         "relay.modelHints": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Suggest a model for each message: [Jev](https://typesafe.ai) rates how hard the message looks, and the suggestion shows next to the model dropdown. **⇧⌘↵** sends with it. Messages you type are sent to TypeSafe. Asks for your TypeSafe API key the first time; **Relay: Set Jev API Key** changes it."
+          "markdownDescription": "Suggest a model for each message: [Jev](https://typesafe.ai) rates how hard the message looks, and the suggestion shows next to the model dropdown. After a session's first message only the effort changes, so the prompt cache is kept. **⇧⌘↵** sends with it. Messages you type are sent to TypeSafe. Asks for your TypeSafe API key the first time; **Relay: Set Jev API Key** changes it."
         },
         "relay.modelHintModels": {
           "type": "object",

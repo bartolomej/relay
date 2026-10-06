@@ -73,14 +73,14 @@ export function refreshChips(state: UiState): void {
   chipsHtml = html;
 }
 
-const DIFFICULTY: Record<string, string> = { simple: "Simple", standard: "Standard", complex: "Complex" };
+const DIFFICULTY: Record<string, string> = { simple: "Simple", standard: "Standard", complex: "Complex", extreme: "Extreme" };
 
-/** Jev's suggestion for the message being typed. Clicking it switches to that model; ⇧⌘↵ also sends. */
+/** Jev's suggestion for the message being typed; in a started session just the effort. Clicking it switches to it; ⇧⌘↵ also sends. */
 function hintChip(state: UiState, opts: SessionOptions, models: ModelInfo[]): string {
   const h = currentHint(state);
   if (!h) return "";
   const m = models.find((x) => x.id === h.model);
-  const label = `${m ? m.label : h.model}${h.effort ? ` · ${h.effort}` : ""}`;
+  const label = selected(state) && h.effort ? h.effort : `${m ? m.label : h.model}${h.effort ? ` · ${h.effort}` : ""}`;
   const difficulty = DIFFICULTY[h.difficulty] || h.difficulty;
   if (h.model === opts.model && (!h.effort || h.effort === opts.effort)) {
     return `<span class="model-hint fits" title="${esc(`Jev rates this message ${h.difficulty}, and the model picked is the one it suggests.`)}">${icons.check}${esc(difficulty)}</span>`;

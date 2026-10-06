@@ -88,7 +88,7 @@ function hintsSection(state: UiState, s: SettingsView): string {
   return section(
     "Model suggestions",
     `${check("modelHints", s.modelHints, "Suggest a model for each message")}
-    ${note("As you type, Jev rates how hard the message looks and the model for that difficulty shows next to the model dropdown. <b>⇧⌘↵</b> sends with it. What you type is sent to TypeSafe.")}
+    ${note("As you type, Jev rates how hard the message looks and the model for that difficulty shows next to the model dropdown. After a session's first message it keeps the model and suggests only the effort (low, medium, high, or xhigh when hard work keeps failing), which keeps the prompt cache. <b>⇧⌘↵</b> sends with it. What you type is sent to TypeSafe.")}
     <div class="field-row">${key}</div>
     ${providers.length ? providers.map((p) => tierRows(p, s.modelHintModels)).join("") : note("The models show once Claude Code or Codex is available.")}`,
   );

@@ -127,8 +127,8 @@ export type FromWebview =
   | { type: "toggleKeepAwake" }
   /** Turning it on asks for the Jev API key if there isn't one yet. */
   | { type: "toggleModelHints" }
-  /** The message being typed, for Jev to suggest a model in this provider. */
-  | { type: "suggestModel"; seq: number; text: string; provider: ProviderId }
+  /** The message being typed, for Jev to suggest a model in this provider; `model` is the session's, once it has started, so only the effort changes. */
+  | { type: "suggestModel"; seq: number; text: string; provider: ProviderId; model?: string }
   /** Without a limit the extension asks for one; the phone sends what the user typed. */
   | { type: "setRunLimit"; sessionId: string; limit?: string }
   | { type: "openFile"; sessionId: string; path: string; line?: number; browser?: boolean }

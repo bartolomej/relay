@@ -1,11 +1,12 @@
 import type { ModelSuggestion, ProviderId } from "../api/types";
 import type { UiState } from "../panel/protocol";
-import { composerOptions, post } from "./state";
+import { composerOptions, post, selected } from "./state";
 
 /**
  * While model suggestions are on, a pause in typing asks Jev for a model for
- * the message. A suggestion only counts for the session and provider it was
- * asked for, and is dropped once the message is sent.
+ * the message; in a session that has started, only for an effort on its model.
+ * A suggestion only counts for the session and provider it was asked for, and
+ * is dropped once the message is sent.
  */
 
 const DEBOUNCE_MS = 700;
@@ -32,7 +33,9 @@ export function requestHint(getState: () => UiState | undefined, text: string): 
     if (!s || !s.modelHints) return;
     seq++;
     asked = { sessionId: s.selectedSessionId || "", provider: composerOptions(s).provider };
-    post({ type: "suggestModel", seq, text: text.trim(), provider: asked.provider });
+    const session = selected(s);
+    const model = session && session.options.provider === asked.provider ? session.options.model : undefined;
+    post({ type: "suggestModel", seq, text: text.trim(), provider: asked.provider, model });
   }, DEBOUNCE_MS);
 }
 

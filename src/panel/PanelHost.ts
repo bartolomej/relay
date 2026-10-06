@@ -325,7 +325,7 @@ export class PanelHost implements vscode.Disposable {
         this.schedulePush();
         return;
       case "suggestModel":
-        if (!this.remote) await this.suggestModel(m.seq, m.text, m.provider);
+        if (!this.remote) await this.suggestModel(m.seq, m.text, m.provider, m.model);
         return;
       case "setRunLimit":
         if (m.limit === undefined) await this.askRunLimit(m.sessionId);
@@ -345,9 +345,9 @@ export class PanelHost implements vscode.Disposable {
     }
   }
 
-  private async suggestModel(seq: number, text: string, providerId: ProviderId): Promise<void> {
+  private async suggestModel(seq: number, text: string, providerId: ProviderId, model?: string): Promise<void> {
     const provider = modelHintsEnabled() ? (await this.api.listProviders()).find((p) => p.id === providerId) : undefined;
-    const suggestion = provider ? await suggestModel(text, provider) : undefined;
+    const suggestion = provider ? await suggestModel(text, provider, model) : undefined;
     await this.post({ type: "modelSuggestion", seq, suggestion });
   }
 

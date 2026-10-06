@@ -25,6 +25,8 @@ Relay drives the `claude` and `codex` CLIs you already have, so your logins, set
 
 Click the gauge next to **New** to turn on model suggestions. Then, as you type, [Jev](https://typesafe.ai) rates how hard the message looks (simple, standard or complex) and suggests a model and effort next to the model dropdown. **⇧⌘↵** sends with the suggestion. Quick fixes go to a fast model and hard problems go to the strongest one, so you don't spend your plan on a rename. By default that's Sonnet 5.5 at low effort, Opus 5.5 at medium and Opus 5.5 at high for Claude. Change them in Relay's settings.
 
+That's for a session's first message. After that Jev keeps the session's model and suggests only the effort: low, medium or high, and xhigh for the rare hard problem that keeps failing. Switching model mid-session throws away the prompt cache and costs more than the cheaper model saves; switching effort keeps the cache.
+
 The first time, Relay shows which model each difficulty gets, then asks for your TypeSafe API key and keeps it in the system keychain. **Relay: Set Jev API Key** changes it. The messages you type are sent to TypeSafe for the rating.
 
 ### See every session at a glance

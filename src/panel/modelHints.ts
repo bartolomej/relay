@@ -1,11 +1,13 @@
 import * as vscode from "vscode";
-import type { Difficulty, ModelSuggestion, ModelTiers, ProviderInfo } from "../api/types";
+import type { Difficulty, Effort, ModelInfo, ModelSuggestion, ModelTiers, ProviderInfo } from "../api/types";
 import { checkKey, JevError, rateDifficulty } from "../backend/jev";
 
 /**
  * Model suggestions: Jev rates how hard the message being typed looks, and
  * `relay.modelHintModels` says which model and effort each difficulty gets.
- * The TypeSafe API key is kept in the system keychain.
+ * Once a session has started only the effort changes: switching model drops
+ * the prompt cache and costs far more than the cheaper model saves, while
+ * switching effort keeps it. The TypeSafe API key is kept in the system keychain.
  */
 
 const SECRET = "relay.jevApiKey";
@@ -16,6 +18,10 @@ const LEVELS: Array<[Difficulty, string]> = [
   ["standard", "Standard"],
   ["complex", "Complex"],
 ];
+
+/** The effort each difficulty gets once the session's model is fixed. */
+const SESSION_EFFORT: Record<Difficulty, Effort> = { simple: "low", standard: "medium", complex: "high", extreme: "xhigh" };
+const EFFORT_ORDER: Effort[] = ["low", "medium", "high", "xhigh", "max"];
 
 let secrets: vscode.SecretStorage | undefined;
 let listProviders: () => Promise<ProviderInfo[]> = () => Promise.resolve([]);
@@ -58,6 +64,7 @@ async function introduce(): Promise<boolean> {
   const detail = [
     "Jev rates each message you type as simple, standard or complex, and Relay suggests a model for it:",
     tiersSummary(providers),
+    "That's for a session's first message. After that the model stays and only the effort follows: low, medium, high, or xhigh when hard work keeps failing.",
     "Change them anytime in Relay's settings (the gear in the sessions bar). What you type is sent to TypeSafe to rate it.",
   ].join("\n\n");
   const pick = await vscode.window.showInformationMessage("Suggest a model for each message", { modal: true, detail }, "Set API Key");
@@ -111,8 +118,11 @@ export async function askForKey(): Promise<string | undefined> {
   return key;
 }
 
-/** The model and effort for the text in this provider, or undefined when Jev or the settings can't say. */
-export async function suggestModel(text: string, provider: ProviderInfo): Promise<ModelSuggestion | undefined> {
+/**
+ * The model and effort for the text in this provider, or undefined when Jev or
+ * the settings can't say. With `sessionModel` the model stays and only the effort is suggested.
+ */
+export async function suggestModel(text: string, provider: ProviderInfo, sessionModel?: string): Promise<ModelSuggestion | undefined> {
   const key = await storedKey();
   if (!key) return undefined;
   let difficulty: Difficulty;
@@ -127,12 +137,27 @@ export async function suggestModel(text: string, provider: ProviderInfo): Promis
     }
     return undefined;
   }
+  if (sessionModel) {
+    const current = provider.models.find((m) => m.id === sessionModel);
+    return current ? { difficulty, model: current.id, effort: closestEffort(current, SESSION_EFFORT[difficulty]) } : undefined;
+  }
+  // Settings have no extreme tier: it gets the complex model at xhigh.
   const tiers = vscode.workspace.getConfiguration("relay").get<ModelTiers>("modelHintModels", {});
-  const tier = tiers[provider.id] && tiers[provider.id][difficulty];
+  const tier = tiers[provider.id] && tiers[provider.id][difficulty === "extreme" ? "complex" : difficulty];
   const model = tier && provider.models.find((m) => m.id === tier.model);
   if (!tier || !model) return undefined;
-  const effort = tier.effort && model.efforts.includes(tier.effort) ? tier.effort : model.defaultEffort || model.efforts[0] || "";
-  return { difficulty, model: model.id, effort };
+  const want = difficulty === "extreme" ? SESSION_EFFORT.extreme : tier.effort;
+  return { difficulty, model: model.id, effort: want ? closestEffort(model, want) : model.defaultEffort || model.efforts[0] || "" };
+}
+
+/** The effort itself if the model accepts it, else the nearest lower one, else the nearest higher one. */
+export function closestEffort(model: ModelInfo, want: Effort): Effort {
+  if (!model.efforts.length) return "";
+  if (model.efforts.includes(want)) return want;
+  const i = EFFORT_ORDER.indexOf(want);
+  const lower = EFFORT_ORDER.slice(0, Math.max(i, 0)).reverse().find((e) => model.efforts.includes(e));
+  const higher = EFFORT_ORDER.slice(i + 1).find((e) => model.efforts.includes(e));
+  return lower || higher || model.defaultEffort || model.efforts[0];
 }
 
 export async function hasJevKey(): Promise<boolean> {
