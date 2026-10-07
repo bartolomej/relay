@@ -26,6 +26,7 @@ import swift from "highlight.js/lib/languages/swift";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import { diagram, isShowingSource } from "./mermaid";
 import { esc, htmlLinkContext, isHtml } from "./util";
 
 // The languages agents write most; each brings its aliases (ts, sh, html, yml, …).
@@ -83,12 +84,42 @@ function highlight(code: string, lang: string): string {
   return html;
 }
 
-/** Fenced code gets a header with its language and a copy button. */
-md.renderer.rules.fence = (tokens, idx) => {
+/** Whether a fence has its closing line yet; one still streaming in runs to the end of the text. */
+function isClosed(token: Token, env: unknown): boolean {
+  const text = env ? (env as { text?: string }).text : undefined;
+  if (!text || !token.map) return false;
+  const [start, end] = token.map;
+  const last = text.split("\n")[end - 1];
+  return end - 1 > start && last !== undefined && last.replace(/^[\s>]*/, "").startsWith(token.markup);
+}
+
+/**
+ * Fenced code gets a header with its language and a copy button. A finished
+ * mermaid block shows as its diagram, with a button to see the source.
+ */
+md.renderer.rules.fence = (tokens, idx, _options, env) => {
   const token = tokens[idx];
   const lang = token.info.trim().split(/\s+/)[0];
+  const head = (extra = "") =>
+    `<div class="code-head"><span>${esc(lang || "text")}</span><span class="grow"></span>${extra}<button class="code-copy" data-action="copyCode" title="Copy code">Copy</button></div>`;
+  if (lang.toLowerCase() === "mermaid" && isClosed(token, env)) {
+    const source = token.content;
+    const img = isShowingSource(source) ? undefined : diagram(source);
+    if (img) {
+      return `<div class="code-block" data-mermaid>
+    ${head(`<button class="code-copy" data-action="toggleDiagram" title="Show the source">Source</button>`)}
+    <div class="mermaid-diagram">${img}</div>
+    <pre hidden><code>${esc(source)}</code></pre>
+  </div>`;
+    }
+    const toggle = isShowingSource(source) ? `<button class="code-copy" data-action="toggleDiagram" title="Show the diagram">Diagram</button>` : "";
+    return `<div class="code-block" data-mermaid>
+    ${head(toggle)}
+    <pre><code>${esc(source)}</code></pre>
+  </div>`;
+  }
   return `<div class="code-block">
-    <div class="code-head"><span>${esc(lang || "text")}</span><button class="code-copy" data-action="copyCode" title="Copy code">Copy</button></div>
+    ${head()}
     <pre><code>${highlight(token.content, lang.toLowerCase())}</code></pre>
   </div>`;
 };
@@ -177,5 +208,5 @@ md.core.ruler.push("file_links", (state: StateCore) => {
 });
 
 export function renderMarkdown(text: string, links: Set<string> = new Set()): string {
-  return md.render(text, { links });
+  return md.render(text, { links, text });
 }

@@ -44,6 +44,19 @@ const picker = {
   logLevel: "info",
 };
 
+// Mermaid is a few MB, so it gets its own bundle that the webview loads only when a chat has a diagram.
+const mermaid = {
+  entryPoints: ["src/webview/mermaidBundle.ts"],
+  bundle: true,
+  format: "iife",
+  globalName: "__relayMermaid",
+  platform: "browser",
+  target: "es2019",
+  outfile: "dist/mermaid.js",
+  minify: true,
+  logLevel: "info",
+};
+
 const css = {
   entryPoints: ["src/webview/styles.css"],
   bundle: true,
@@ -53,8 +66,8 @@ const css = {
 };
 
 if (watch) {
-  const contexts = await Promise.all([extension, webview, picker, css].map((c) => esbuild.context(c)));
+  const contexts = await Promise.all([extension, webview, picker, mermaid, css].map((c) => esbuild.context(c)));
   await Promise.all(contexts.map((c) => c.watch()));
 } else {
-  await Promise.all([extension, webview, picker, css].map((c) => esbuild.build(c)));
+  await Promise.all([extension, webview, picker, mermaid, css].map((c) => esbuild.build(c)));
 }
