@@ -315,6 +315,8 @@ body.vscode-light { --user-bg: color-mix(in srgb, var(--bg) 94%, #000); }
 .code-copy { padding: 1px 6px; border-radius: 3px; font-size: 11px; color: var(--fg-muted); }
 .code-copy:hover { background: var(--bg-hover); color: var(--fg); }
 .md pre { margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+.mermaid-diagram { padding: 12px; overflow-x: auto; }
+.mermaid-img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
 
 /* Syntax colours from the theme's debug-console palette, the closest VS Code
    exposes to a webview; the fallbacks are Dark+ and Light+. */

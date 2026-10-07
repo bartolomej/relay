@@ -14,7 +14,7 @@ const COOKIE = "relay_key";
 const RECONNECT_GRACE_MS = 10 * 60_000;
 const MAX_CLIENTS = 20;
 const MAX_BODY_BYTES = 1_000_000;
-const ASSETS: Record<string, string> = { "/webview.js": "text/javascript; charset=utf-8", "/webview.css": "text/css; charset=utf-8" };
+const ASSETS: Record<string, string> = { "/webview.js": "text/javascript; charset=utf-8", "/webview.css": "text/css; charset=utf-8", "/mermaid.js": "text/javascript; charset=utf-8" };
 
 /** The page holds no data; everything comes over the authenticated API. */
 const PAGE = `<!DOCTYPE html>
@@ -35,7 +35,8 @@ const PAGE = `<!DOCTYPE html>
 </body>
 </html>`;
 
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+// Inline styles: mermaid lays a diagram out in the page, with them, before it becomes an image.
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 /** One phone's end of a PanelHost: state goes out on its event stream, commands come in as POSTs. */
 class PhoneChannel implements UiChannel {

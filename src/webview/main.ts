@@ -1,6 +1,7 @@
 import { hasBackground, minutesLabel, type ApprovalDecision } from "../api/types";
 import type { ToWebview, UiState } from "../panel/protocol";
 import { answersFor, renderChat } from "./chat";
+import { onDiagramsDrawn, toggleDiagramSource } from "./mermaid";
 import { morphChildren } from "./morph";
 import { bindComposerOnce, insertText, refreshChips, renderComposer, swapDraft } from "./composer";
 import { renderSessions } from "./sessions";
@@ -274,6 +275,8 @@ function messageText(mid: string): string {
   return m ? m.text : "";
 }
 
+onDiagramsDrawn(render);
+
 app.addEventListener("click", (e) => {
   const target = (e.target as HTMLElement).closest("[data-action]") as HTMLElement | null;
   if (!target || !state) return;
@@ -411,6 +414,13 @@ app.addEventListener("click", (e) => {
       if (code) void navigator.clipboard.writeText(code.textContent || "");
       target.textContent = "Copied";
       setTimeout(() => (target.textContent = "Copy"), 1200);
+      break;
+    }
+    case "toggleDiagram": {
+      const block = target.closest(".code-block");
+      const code = block && block.querySelector("code");
+      if (code) toggleDiagramSource(code.textContent || "");
+      render();
       break;
     }
   }
