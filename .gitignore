@@ -3,3 +3,5 @@ dist/
 *.vsix
 .DS_Store
 .env
+.pr-lens/
+.relay/
